@@ -46,6 +46,10 @@ body {
   flex-direction: column;
 }
 
+::-webkit-scrollbar {
+  display: none;
+}
+
 button {
   font: inherit;
   color: inherit;
