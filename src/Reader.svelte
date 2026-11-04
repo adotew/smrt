@@ -33,7 +33,7 @@
       ? 1
       : Math.max(
           0.1,
-          (containerWidth - (withNotes ? NOTES_WIDTH : 0) - PAGE_GAP * 2) / Math.max(...pages.map((p) => p.width)),
+          (containerWidth - (withNotes ? NOTES_WIDTH + PAGE_GAP : 0) - PAGE_GAP * 2) / Math.max(...pages.map((p) => p.width)),
         ),
   );
   const effective = $derived(scale ?? fit);
@@ -239,7 +239,10 @@
       {#if withNotes}
         <label class="note">
           <span>Page {index + 1}</span>
-          <textarea value={notes[index + 1] ?? ""} oninput={(event) => editNote(index + 1, event.target.value)}
+          <textarea
+            placeholder="Add a note…"
+            value={notes[index + 1] ?? ""}
+            oninput={(event) => editNote(index + 1, event.target.value)}
           ></textarea>
         </label>
       {/if}

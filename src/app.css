@@ -9,6 +9,7 @@
   --fill: rgb(0 0 0 / 0.04);
   --selection: rgb(0 0 0 / 0.1);
   --page-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
+  --note: #fbfbfa;
   font: 13px -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
@@ -23,6 +24,7 @@
     --fill: rgb(255 255 255 / 0.05);
     --selection: rgb(255 255 255 / 0.12);
     --page-shadow: 0 1px 4px rgb(0 0 0 / 0.6);
+  --note: #2a2a2a;
   }
 }
 
@@ -320,6 +322,8 @@ main {
 .sheet {
   position: relative;
   flex: none;
+  overflow: hidden;
+  border-radius: 8px;
   background: #fff;
   box-shadow: var(--page-shadow);
   --scale-round-x: 1px;
@@ -332,34 +336,39 @@ main {
   height: 100%;
 }
 
-.notes-slot {
-  display: none;
-}
-
-#pages.with-notes .notes-slot {
-  display: flex;
-  width: 268px;
+.note {
+  width: 280px;
   margin-left: 12px;
   flex: none;
-}
-
-.note {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--note);
   border-radius: 8px;
-  background: var(--fill);
+  box-shadow: var(--page-shadow);
+  /* The page alone sets the row's height; the note stretches to it. */
+  contain: size;
+  overflow: hidden;
 }
 
 .note span {
   font-size: 11px;
+  font-weight: 600;
+  color: var(--tertiary);
+}
+
+.note:focus-within span {
   color: var(--secondary);
+}
+
+.note textarea::placeholder {
+  color: var(--tertiary);
 }
 
 .note textarea {
   flex: 1;
+  min-height: 0;
   resize: none;
   border: 0;
   outline: 0;
