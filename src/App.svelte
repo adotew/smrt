@@ -170,7 +170,7 @@
     <nav class="breadcrumbs">
       {#if folder}
         <button class="crumb" onclick={showOverview}>Library</button>
-        <Icon name="chevronRight" size={12} />
+        <Icon name="chevronRight" size={14} />
         <span>{folder.name}</span>
       {:else}
         <span>Library</span>
@@ -263,7 +263,7 @@
                     onclick={() => toggleFolder(f)}
                     oncontextmenu={() => folderMenu(f)}
                   >
-                    <span class="chevron" class:open><Icon name="chevronRight" size={10} /></span>
+                    <span class="chevron" class:open><Icon name="chevronRight" size={12} /></span>
                     <img src={icons.folder32} alt="" />
                     <span class="label">{f.name}</span>
                   </button>
