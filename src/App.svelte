@@ -1,5 +1,6 @@
 <script>
   import { onMount } from "svelte";
+  import { slide } from "svelte/transition";
   import { SvelteSet } from "svelte/reactivity";
   import EmptyState from "./EmptyState.svelte";
   import Icon from "./Icon.svelte";
@@ -258,7 +259,7 @@
         {@render iconButton("sidebar", showingSidebar ? "Hide Sidebar" : "Show Sidebar", () => (showingSidebar = !showingSidebar))}
       </div>
       {#if showingSidebar}
-        <aside id="sidebar">
+        <aside id="sidebar" transition:slide={{ axis: "x", duration: 200 }}>
           {#if folders.length === 0}
             <EmptyState icon="newFolder" title="Create a folder" />
           {:else}

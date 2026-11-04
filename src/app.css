@@ -288,6 +288,17 @@ main {
   z-index: 1;
 }
 
+#reader-controls,
+#sidebar-toggle {
+  transition:
+    top 0.2s,
+    left 0.2s,
+    height 0.2s,
+    padding 0.2s,
+    background-color 0.2s,
+    box-shadow 0.2s;
+}
+
 .floating .icon-button {
   border-radius: 999px;
 }
