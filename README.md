@@ -17,6 +17,7 @@ for the last page and zoom.
 
 Right-click a page to insert a blank page after it, duplicate, rotate or delete it.
 These edits rewrite the PDF itself; the previous version goes to the Trash each time.
+Undo covers page edits, highlights, notes and text boxes until you open another PDF or quit.
 
 On first launch, an existing library from the old macpdf app is copied over; the
 original folder is left as it was.
@@ -44,6 +45,7 @@ against it, so Svelte/CSS edits update the window instantly. Changes to
 
 | Action          | macOS                    | Windows and Linux     |
 | --------------- | ------------------------ | --------------------- |
+| Undo / redo     | Command + Z / Shift + Command + Z | Ctrl + Z / Shift + Ctrl + Z |
 | Toggle sidebar  | Control + Command + S    | Ctrl + Shift + S      |
 | Toggle notes    | Command + Shift + N      | Ctrl + Shift + N      |
 | Zoom in / out   | Command + = / −          | Ctrl + = / −          |

@@ -25,6 +25,9 @@
   let picker = $state(null);
   /** The page note whose text is being edited; the others are dragged instead. */
   let editingNote = $state(null);
+  /** Undo and redo stacks of { notes, annotations, key, at, pdf? }; see `record`. */
+  let undoStack = [];
+  let redoStack = [];
   let containerWidth = $state(0);
   /** Holds still while the sidebar animates, so pages are laid out once at the end instead of every frame. */
   let fitWidth = $state(0);
@@ -64,7 +67,11 @@
     const pdf = path;
     if (!pdf) return;
     untrack(() => load(pdf));
-    return () => close(pdf);
+    return () => {
+      close(pdf);
+      undoStack = [];
+      redoStack = [];
+    };
   });
 
   async function load(pdf) {
@@ -104,6 +111,7 @@
     notes = null;
     annotations = null;
     picker = null;
+    editingNote = null;
     scale = null;
   }
 
@@ -283,7 +291,44 @@
     return lines.map((line) => line.map((v) => Math.round(v * 1e4) / 1e4));
   }
 
+  const current = () => ({ notes: $state.snapshot(notes), annotations: $state.snapshot(annotations) });
+
+  /**
+   * Remembers the notes and annotations before a change. Changes with the same `key` less than
+   * a second apart, like typing, merge into one step.
+   */
+  function record(key) {
+    const top = undoStack.at(-1);
+    const at = Date.now();
+    redoStack = [];
+    if (key && top?.key === key && at - top.at < 1000) top.at = at;
+    else undoStack.push({ ...current(), key, at });
+  }
+
+  export const undo = () => step(undoStack, redoStack, "before");
+  export const redo = () => step(redoStack, undoStack, "after");
+
+  // A PDF step holds both versions: undo restores `before`, redo restores `after`.
+  async function step(from, to, version) {
+    if (editingPages || !from.length || !annotations) return;
+    const state = from.pop();
+    to.push({ ...current(), pdf: state.pdf });
+    notes = state.notes;
+    annotations = state.annotations;
+    editingNote = null;
+    if (!state.pdf) {
+      api.saveNotes(path, state.notes).catch(onerror);
+      saveAnnotations();
+      return;
+    }
+    await changePDF(async (pdf) => {
+      await api.restoreVersion(pdf, state.pdf[version]);
+      await Promise.all([api.saveNotes(pdf, state.notes), api.saveAnnotations(pdf, state.annotations)]);
+    });
+  }
+
   function highlight(color) {
+    record();
     for (const [page, found] of Map.groupBy(selectedRects(), (f) => f.page)) {
       annotations.highlights.push({ id: crypto.randomUUID(), page, color, rects: mergeLines(found.map((f) => f.rect)) });
     }
@@ -319,6 +364,7 @@
       ...(pages.length > 1 ? [separator, { id: "delete", label: "Delete Page" }] : []),
     ]);
     if (chosen === "removeHighlight") {
+      record();
       annotations.highlights = annotations.highlights.filter((h) => h.id !== hit.id);
       saveAnnotations();
     } else if (PAGE_EDITS[chosen]) {
@@ -326,8 +372,18 @@
     }
   }
 
+  function editPage(edit) {
+    const before = current();
+    return changePDF(async (pdf) => {
+      const versions = await api.editPage(pdf, edit);
+      undoStack.push({ ...before, pdf: versions });
+      redoStack = [];
+    });
+  }
+
+  /** Runs `change` on the file, then reloads it. */
   let editingPages = false;
-  async function editPage(edit) {
+  async function changePDF(change) {
     const pdf = path;
     if (editingPages) return;
     editingPages = true;
@@ -335,7 +391,7 @@
       // The library moves the saved position along with the pages, so it must be current first.
       savePosition.flush(pdf);
       await api.savePosition(pdf, { page: currentPage, scale: scale ?? undefined });
-      await api.editPage(pdf, edit);
+      await change(pdf);
       if (pdf !== path) return;
       close(pdf);
       await load(pdf);
@@ -353,6 +409,7 @@
     if (!placingNote || event.target.closest(".page-note")) return;
     const box = event.currentTarget.getBoundingClientRect();
     const id = crypto.randomUUID();
+    record(id);
     annotations.pageNotes ??= [];
     annotations.pageNotes.push({
       id,
@@ -373,6 +430,7 @@
   }
 
   function editPageNote(note, text) {
+    record(note.id);
     note.text = text;
     saveAnnotations();
   }
@@ -382,6 +440,7 @@
     const w = Math.round(textarea.offsetWidth / effective);
     const h = Math.round(textarea.offsetHeight / effective);
     if (w === (note.w ?? NOTE_SIZE[0]) && h === (note.h ?? NOTE_SIZE[1])) return;
+    record();
     Object.assign(note, { w, h });
     saveAnnotations();
   }
@@ -392,14 +451,17 @@
     const box = event.currentTarget.parentElement.getBoundingClientRect();
     const start = { x: event.clientX, y: event.clientY, noteX: note.x, noteY: note.y };
     const clamp = (v) => Math.min(1, Math.max(0, v));
+    let moved = false;
     const move = (e) => {
+      if (!moved) record();
+      moved = true;
       note.x = clamp(start.noteX + (e.clientX - start.x) / box.width);
       note.y = clamp(start.noteY + (e.clientY - start.y) / box.height);
     };
     const stop = () => {
       removeEventListener("pointermove", move);
       removeEventListener("pointerup", stop);
-      saveAnnotations();
+      if (moved) saveAnnotations();
     };
     addEventListener("pointermove", move);
     addEventListener("pointerup", stop);
@@ -409,6 +471,10 @@
   function dropEmptyNote(note) {
     if (editingNote === note.id) editingNote = null;
     if (note.text) return;
+    // A note placed and left empty never happened, so its step goes too.
+    const top = undoStack.at(-1);
+    if (top?.key === note.id && !top.annotations.pageNotes?.some((n) => n.id === note.id)) undoStack.pop();
+    else record();
     annotations.pageNotes = annotations.pageNotes.filter((n) => n.id !== note.id);
     saveAnnotations();
   }
@@ -418,6 +484,7 @@
   }
 
   function editNote(page, text) {
+    record(`note ${page}`);
     notes[page] = text;
     api.saveNotes(path, $state.snapshot(notes)).catch(onerror);
   }

@@ -12,7 +12,10 @@ const libraryPath = path.join(app.getPath("userData"), "Library");
 // One-time copy of the library from the deprecated Swift app; its folder is left untouched.
 const swiftLibrary = path.join(app.getPath("appData"), "macpdf");
 if (!fs.existsSync(libraryPath) && fs.existsSync(swiftLibrary)) fs.cpSync(swiftLibrary, libraryPath, { recursive: true });
-const library = createLibrary(libraryPath, { trash: (file) => shell.trashItem(file) });
+// Undo history lasts one session, so earlier versions are cleared on launch.
+const versionsPath = path.join(app.getPath("temp"), "Smrt Versions");
+fs.rmSync(versionsPath, { recursive: true, force: true });
+const library = createLibrary(libraryPath, { trash: (file) => shell.trashItem(file), versionsPath });
 
 async function importPDF(window, folder) {
   const { canceled, filePaths } = await dialog.showOpenDialog(window, {
@@ -56,7 +59,19 @@ function buildMenu(window) {
     Menu.buildFromTemplate([
       ...(isMac ? [{ role: "appMenu" }] : []),
       { role: "fileMenu" },
-      { role: "editMenu" },
+      {
+        label: "Edit",
+        submenu: [
+          // The renderer decides between a text field's own undo and the document's.
+          { label: "Undo", accelerator: "CmdOrCtrl+Z", click: send("undo") },
+          { label: "Redo", accelerator: "Shift+CmdOrCtrl+Z", click: send("redo") },
+          { type: "separator" },
+          { role: "cut" },
+          { role: "copy" },
+          { role: "paste" },
+          { role: "selectAll" },
+        ],
+      },
       {
         label: "View",
         submenu: [
@@ -93,7 +108,7 @@ app.whenReady().then(() => {
   buildMenu(window);
 
   const handle = (channel, fn) => ipcMain.handle(channel, (_event, ...args) => fn(...args));
-  for (const name of ["listLibrary", "createFolder", "renamePDF", "trashPDF", "readPDF", "readNotes", "saveNotes", "readAnnotations", "saveAnnotations", "readPosition", "savePosition", "editPage"]) {
+  for (const name of ["listLibrary", "createFolder", "renamePDF", "trashPDF", "readPDF", "readNotes", "saveNotes", "readAnnotations", "saveAnnotations", "readPosition", "savePosition", "editPage", "restoreVersion"]) {
     handle(name, library[name]);
   }
   handle("importPDF", (folder) => importPDF(window, folder));

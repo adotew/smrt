@@ -47,6 +47,11 @@
 
   api.on("fullscreen", (value) => (fullscreen = value));
   api.on("command", (command) => {
+    const field = document.activeElement;
+    if ((command === "undo" || command === "redo") && field?.matches("input, textarea") && !field.readOnly) {
+      document.execCommand(command);
+      return;
+    }
     if (showingOverview) return;
     const commands = {
       toggleSidebar: () => (showingSidebar = !showingSidebar),
@@ -55,6 +60,8 @@
       zoomOut: () => reader?.zoomOut(),
       zoomReset: () => reader?.zoom(1),
       zoomFit: () => reader?.zoom(null),
+      undo: () => reader?.undo(),
+      redo: () => reader?.redo(),
     };
     commands[command]?.();
   });

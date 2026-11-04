@@ -14,6 +14,7 @@ const channels = [
   "readPosition",
   "savePosition",
   "editPage",
+  "restoreVersion",
   "icon",
   "contextMenu",
 ];

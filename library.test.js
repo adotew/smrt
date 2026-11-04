@@ -8,7 +8,11 @@ const { createLibrary } = require("./library");
 function setup(options) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "smrt-"));
   const trashed = [];
-  const library = createLibrary(path.join(dir, "library"), { trash: async (file) => trashed.push(file), ...options });
+  const library = createLibrary(path.join(dir, "library"), {
+    trash: async (file) => trashed.push(file),
+    versionsPath: path.join(dir, "versions"),
+    ...options,
+  });
   const source = path.join(dir, "Paper.pdf");
   fs.writeFileSync(source, "%PDF-1.4\n%%EOF\n");
   return { dir, library, source, trashed };
@@ -150,4 +154,26 @@ test("the last page can't be deleted", async () => {
   fs.writeFileSync(source, await doc.save());
   const pdf = library.importPDF(source, library.createFolder("Math"));
   await assert.rejects(library.editPage(pdf, { action: "delete", page: 1 }), /at least one page/);
+});
+
+test("page edits keep versions that can be restored", async () => {
+  const { PDFDocument } = require("pdf-lib");
+  const { dir, library } = setup();
+  const doc = await PDFDocument.create();
+  doc.addPage();
+  doc.addPage();
+  const source = path.join(dir, "Two.pdf");
+  fs.writeFileSync(source, await doc.save());
+  const pdf = library.importPDF(source, library.createFolder("Math"));
+  const count = async () => (await PDFDocument.load(fs.readFileSync(pdf))).getPageCount();
+
+  const { before, after } = await library.editPage(pdf, { action: "delete", page: 1 });
+  assert.equal(await count(), 1);
+  await library.restoreVersion(pdf, before);
+  assert.equal(await count(), 2);
+  await library.restoreVersion(pdf, after);
+  assert.equal(await count(), 1);
+  for (const id of ["../Two.pdf", "a/b.pdf", "x.json", undefined]) {
+    await assert.rejects(library.restoreVersion(pdf, id), /doesn't exist/);
+  }
 });

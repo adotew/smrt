@@ -1,3 +1,4 @@
+const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { PDFDocument, degrees } = require("pdf-lib");
@@ -6,7 +7,7 @@ const { PDFDocument, degrees } = require("pdf-lib");
 const turnRect = ([x, y, w, h], turn) => (turn === 90 ? [1 - y - h, x, h, w] : [y, 1 - x - w, h, w]);
 
 /** Folders of PDFs under `libraryPath`, each with optional sidecar files next to it. */
-function createLibrary(libraryPath, { trash }) {
+function createLibrary(libraryPath, { trash, versionsPath }) {
   fs.mkdirSync(libraryPath, { recursive: true });
   const root = fs.realpathSync(libraryPath);
 
@@ -160,9 +161,28 @@ function createLibrary(libraryPath, { trash }) {
     await fs.promises.writeFile(positionPath(inLibrary(pdf)), JSON.stringify(position)).catch(() => {});
   }
 
+  /** Keeps a copy of a PDF's contents under `versionsPath` for undo and returns its id. */
+  async function keepVersion(bytes) {
+    await fs.promises.mkdir(versionsPath, { recursive: true });
+    const id = crypto.randomUUID() + ".pdf";
+    await fs.promises.writeFile(path.join(versionsPath, id), bytes);
+    return id;
+  }
+
+  /** Puts back a version kept by `editPage`. Notes and annotations are the caller's to restore. */
+  async function restoreVersion(pdf, id) {
+    pdf = inLibrary(pdf);
+    // The id comes from the renderer, so it may only name a file directly inside the versions folder.
+    if (!/^[\w-]+\.pdf$/.test(String(id))) throw new Error("That version doesn't exist.");
+    const temp = pdf + ".tmp";
+    await fs.promises.copyFile(path.join(versionsPath, id), temp);
+    fs.renameSync(temp, pdf);
+  }
+
   /**
    * Inserts a blank page or a copy after the 1-based `page`, deletes it, or rotates it by `rotate` (±90).
    * The original file goes to the Trash, and notes, annotations and the reading position follow their pages.
+   * Returns the ids of the versions before and after, for `restoreVersion`.
    */
   async function editPage(pdf, { action, page, rotate }) {
     pdf = inLibrary(pdf);
@@ -171,9 +191,10 @@ function createLibrary(libraryPath, { trash }) {
     const annotations = readAnnotations(pdf);
     const position = await readPosition(pdf);
 
+    const original = await fs.promises.readFile(pdf);
     let doc;
     try {
-      doc = await PDFDocument.load(await fs.promises.readFile(pdf));
+      doc = await PDFDocument.load(original);
     } catch {
       throw new Error("The pages of this PDF can't be edited because it is encrypted or damaged.");
     }
@@ -200,8 +221,10 @@ function createLibrary(libraryPath, { trash }) {
       throw new Error("Unknown page edit.");
     }
 
+    const edited = await doc.save();
+    const versions = { before: await keepVersion(original), after: await keepVersion(edited) };
     const temp = pdf + ".tmp";
-    await fs.promises.writeFile(temp, await doc.save());
+    await fs.promises.writeFile(temp, edited);
     try {
       await trash(pdf);
     } catch (error) {
@@ -233,6 +256,7 @@ function createLibrary(libraryPath, { trash }) {
     if (position?.page != null) {
       await savePosition(pdf, { ...position, page: (moved(position.page + 1) ?? Math.min(page, count - 1)) - 1 });
     }
+    return versions;
   }
 
   return {
@@ -251,6 +275,7 @@ function createLibrary(libraryPath, { trash }) {
     readPosition,
     savePosition,
     editPage,
+    restoreVersion,
   };
 }
 
