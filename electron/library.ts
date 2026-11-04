@@ -58,13 +58,14 @@ export interface Folder {
   name: string;
   path: string;
   pdfs: { name: string; path: string }[];
+  markdown: { name: string; path: string }[];
 }
 
 /** Turns a rect with its page: clockwise for 90, anticlockwise for -90. */
 const turnRect = ([x, y, w, h]: Rect, turn: 90 | -90): Rect =>
   turn === 90 ? [1 - y - h, x, h, w] : [y, 1 - x - w, h, w];
 
-/** Folders of PDFs under `libraryPath`, each with optional sidecar files next to it. */
+/** Folders of PDFs and markdown files under `libraryPath`; PDFs may have sidecar files next to them. */
 export function createLibrary(
   libraryPath: string,
   { trash, versionsPath }: { trash: (file: string) => Promise<unknown>; versionsPath: string },
@@ -92,7 +93,8 @@ export function createLibrary(
   const notesPath = (pdf: string) => pdf.replace(/\.pdf$/i, ".notes.json");
   const positionPath = (pdf: string) => pdf.replace(/\.pdf$/i, ".position.json");
   const annotationsPath = (pdf: string) => pdf.replace(/\.pdf$/i, ".annotations.json");
-  const sidecars = (pdf: string) => [notesPath(pdf), positionPath(pdf), annotationsPath(pdf)];
+  const sidecars = (file: string) =>
+    /\.pdf$/i.test(file) ? [notesPath(file), positionPath(file), annotationsPath(file)] : [];
 
   function listLibrary(): Folder[] {
     const entries = (dir: string) =>
@@ -101,13 +103,12 @@ export function createLibrary(
       .filter((e) => e.isDirectory())
       .map((folder) => {
         const folderPath = path.join(root, folder.name);
-        return {
-          name: folder.name,
-          path: folderPath,
-          pdfs: entries(folderPath)
-            .filter((e) => e.isFile() && e.name.toLowerCase().endsWith(".pdf"))
-            .map((e) => ({ name: e.name, path: path.join(folderPath, e.name) })),
-        };
+        const files = entries(folderPath).filter((e) => e.isFile());
+        const withExtension = (extension: string) =>
+          files
+            .filter((e) => e.name.toLowerCase().endsWith(extension))
+            .map((e) => ({ name: e.name, path: path.join(folderPath, e.name) }));
+        return { name: folder.name, path: folderPath, pdfs: withExtension(".pdf"), markdown: withExtension(".md") };
       });
   }
 
@@ -141,19 +142,22 @@ export function createLibrary(
     return destination;
   }
 
-  function renamePDF(pdf: string, name: string) {
-    pdf = inLibrary(pdf);
-    name = name.trim().replace(/\.pdf$/i, "");
-    const destination = path.join(path.dirname(pdf), validatedName(name) + ".pdf");
-    if (destination === pdf) return pdf;
+  /** Renames a PDF or markdown file, keeping its extension. */
+  function renameFile(source: string, name: string) {
+    source = inLibrary(source);
+    const extension = path.extname(source);
+    name = name.trim();
+    if (name.toLowerCase().endsWith(extension.toLowerCase())) name = name.slice(0, -extension.length);
+    const destination = path.join(path.dirname(source), validatedName(name) + extension);
+    if (destination === source) return source;
     // A case-only rename finds the source itself on case-insensitive volumes.
-    if (destination.toLowerCase() !== pdf.toLowerCase() && fs.existsSync(destination)) {
+    if (destination.toLowerCase() !== source.toLowerCase() && fs.existsSync(destination)) {
       throw new Error(`“${path.basename(destination)}” already exists.`);
     }
-    fs.renameSync(pdf, destination);
+    fs.renameSync(source, destination);
     const moved: [string, string][] = [];
     try {
-      for (const [from, to] of sidecars(pdf).map((file, i) => [file, sidecars(destination)[i]])) {
+      for (const [from, to] of sidecars(source).map((file, i) => [file, sidecars(destination)[i]])) {
         if (!fs.existsSync(from)) continue;
         fs.renameSync(from, to);
         moved.push([from, to]);
@@ -161,16 +165,42 @@ export function createLibrary(
     } catch (error) {
       // Keep the PDF and its sidecars together.
       for (const [from, to] of moved.reverse()) fs.renameSync(to, from);
-      fs.renameSync(destination, pdf);
+      fs.renameSync(destination, source);
       throw error;
     }
     return destination;
   }
 
-  async function trashPDF(pdf: string) {
-    pdf = inLibrary(pdf);
-    await trash(pdf);
-    for (const file of sidecars(pdf)) if (fs.existsSync(file)) await trash(file);
+  async function trashFile(file: string) {
+    file = inLibrary(file);
+    await trash(file);
+    for (const sidecar of sidecars(file)) if (fs.existsSync(sidecar)) await trash(sidecar);
+  }
+
+  function markdownFile(file: string) {
+    file = inLibrary(file);
+    if (!/\.md$/i.test(file)) throw new Error("That isn't a markdown file.");
+    return file;
+  }
+
+  function createMarkdown(folder: string, name: string) {
+    folder = inLibrary(folder);
+    const file = path.join(folder, validatedName(name.trim().replace(/\.md$/i, "")) + ".md");
+    try {
+      // "wx" refuses to overwrite an existing file.
+      fs.writeFileSync(file, "", { flag: "wx" });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error(`“${path.basename(file)}” already exists.`);
+      throw error;
+    }
+    return file;
+  }
+
+  async function saveMarkdown(file: string, text: string) {
+    file = markdownFile(file);
+    if (typeof text !== "string") throw new Error("Markdown must be text.");
+    await fs.promises.writeFile(file + ".tmp", text);
+    await fs.promises.rename(file + ".tmp", file);
   }
 
   /** Unreadable sidecars throw so the renderer never overwrites them. */
@@ -333,8 +363,11 @@ export function createLibrary(
     listLibrary,
     createFolder,
     importPDF,
-    renamePDF,
-    trashPDF,
+    renameFile,
+    trashFile,
+    createMarkdown,
+    readMarkdown: (file: string) => fs.promises.readFile(markdownFile(file), "utf8"),
+    saveMarkdown,
     readPDF: (pdf: string) => fs.promises.readFile(inLibrary(pdf)),
     readNotes,
     saveNotes,

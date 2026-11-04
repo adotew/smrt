@@ -1,3 +1,9 @@
+@font-face {
+  font-family: Heming;
+  src: url("./fonts/heming-variable.ttf") format("truetype");
+  font-weight: 100 900;
+}
+
 :root {
   color-scheme: light dark;
   --background: #fff;
@@ -117,6 +123,14 @@ main {
   margin: 10px 0 0;
   font-size: 17px;
   color: CanvasText;
+}
+
+.brand {
+  font-family: Heming, system-ui;
+  font-size: 40px;
+  color: CanvasText;
+  font-weight: 400;
+  line-height: 1;
 }
 
 .empty p {
@@ -279,7 +293,7 @@ main {
   text-align: left;
 }
 
-#sidebar .row.pdf {
+#sidebar .row.file {
   padding-left: 24px;
 }
 
@@ -568,4 +582,127 @@ dialog .primary {
   border: 0;
   border-radius: 6px;
   padding: 4px 10px;
+}
+
+/* Markdown editor */
+
+.markdown {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  background: var(--background);
+  transition: padding-left 0.2s;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 18px;
+  background: var(--separator);
+}
+
+.markdown-content .ProseMirror {
+  max-width: 720px;
+  min-height: 100%;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 56px 40px 96px;
+  outline: none;
+  font-size: 15px;
+  line-height: 1.6;
+  user-select: text;
+  cursor: text;
+}
+
+.markdown-content .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3 {
+  line-height: 1.25;
+  margin: 1.4em 0 0.4em;
+}
+
+.ProseMirror h1 {
+  font-size: 1.9em;
+}
+
+.ProseMirror h2 {
+  font-size: 1.45em;
+}
+
+.ProseMirror h3 {
+  font-size: 1.15em;
+}
+
+.ProseMirror p {
+  margin: 0.5em 0;
+}
+
+.ProseMirror a {
+  color: LinkText;
+}
+
+.ProseMirror code {
+  padding: 0.1em 0.3em;
+  border-radius: 4px;
+  background: var(--fill);
+  font-size: 0.9em;
+}
+
+.ProseMirror pre {
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--fill);
+  overflow-x: auto;
+}
+
+.ProseMirror pre code {
+  padding: 0;
+  background: none;
+}
+
+.ProseMirror blockquote {
+  margin: 0.8em 0;
+  padding-left: 14px;
+  border-left: 3px solid var(--separator);
+  color: var(--secondary);
+}
+
+.ProseMirror img {
+  max-width: 100%;
+  border-radius: 6px;
+}
+
+.ProseMirror img.ProseMirror-selectednode {
+  outline: 2px solid Highlight;
+}
+
+.ProseMirror hr {
+  border: 0;
+  border-top: 1px solid var(--separator);
+}
+
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 4px;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  gap: 8px;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  user-select: none;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--secondary);
+  text-decoration: line-through;
 }

@@ -1,16 +1,17 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { cubicOut } from "svelte/easing";
   import { slide } from "svelte/transition";
   import { SvelteSet } from "svelte/reactivity";
   import type { Folder } from "../electron/library.ts";
   import EmptyState from "./EmptyState.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
+  import MarkdownEditor from "./MarkdownEditor.svelte";
   import Reader from "./Reader.svelte";
 
   const api = window.smrt;
 
-  type PDF = Folder["pdfs"][number];
+  type File = Folder["pdfs"][number];
 
   /** The floating sidebar's width plus its margin and the gap beside it; matches `#sidebar` in app.css. */
   const SIDEBAR_INSET = 256;
@@ -19,13 +20,15 @@
   let expanded = new SvelteSet<string>();
   /** Folder used for imports. */
   let folderPath: string | null = $state(null);
-  let pdfPath: string | null = $state(null);
+  /** The open PDF or markdown file. */
+  let filePath: string | null = $state(null);
   let showingNotes = $state(false);
   let placingNote = $state(false);
   let showingSidebar = $state(true);
   let fullscreen = $state(false);
-  let pdfIcon = $state("");
+  let icons = $state({ pdf: "", md: "" });
   let reader: Reader | undefined = $state();
+  let markdown: MarkdownEditor | undefined = $state();
 
   let promptDialog: HTMLDialogElement;
   let prompt = $state({ title: "", confirm: "", value: "" });
@@ -34,6 +37,9 @@
 
   // Leaves room for the traffic lights outside fullscreen.
   const windowed = $derived(api.platform === "darwin" && !fullscreen);
+  const isMarkdown = (path: string) => /\.md$/i.test(path);
+  const markdownPath = $derived(filePath && isMarkdown(filePath) ? filePath : null);
+  const pdfPath = $derived(filePath && !markdownPath ? filePath : null);
   /** Slides the list open while the files travel down from the folder, and back up on close. */
   function reveal(node: Element) {
     const { css } = slide(node, { duration: 200 });
@@ -44,10 +50,11 @@
     };
   }
 
-  const baseName = (name: string) => name.replace(/\.pdf$/i, "");
+  const baseName = (name: string) => name.replace(/\.(pdf|md)$/i, "");
+  const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
 
   onMount(async () => {
-    pdfIcon = await api.icon();
+    icons = { pdf: await api.icon("pdf"), md: await api.icon("md") };
     await perform(reload);
   });
 
@@ -66,8 +73,8 @@
       zoomOut: () => reader?.zoomOut(),
       zoomReset: () => reader?.zoom(1),
       zoomFit: () => reader?.zoom(null),
-      undo: () => reader?.undo(),
-      redo: () => reader?.redo(),
+      undo: () => (markdownPath ? markdown?.undo() : reader?.undo()),
+      redo: () => (markdownPath ? markdown?.redo() : reader?.redo()),
     };
     commands[command]?.();
   });
@@ -117,45 +124,63 @@
       const imported = await api.importPDF(target);
       if (!imported) return;
       await reload();
-      openPDF(imported);
+      openFile(imported);
     });
   }
 
-  function openPDF(path: string) {
-    const parent = folders.find((f) => f.pdfs.some((p) => p.path === path));
-    folderPath = parent?.path ?? null;
-    if (parent) expanded.add(parent.path);
-    pdfPath = path;
+  async function newMarkdown(target: string) {
+    const name = await ask("New Markdown File", "Create");
+    if (name == null) return;
+    await perform(async () => {
+      const created = await api.createMarkdown(target, name);
+      await reload();
+      openFile(created);
+    });
   }
 
-  async function pdfMenu(pdf: PDF) {
+  function openFile(path: string) {
+    const parent = folders.find((f) => [...f.pdfs, ...f.markdown].some((p) => p.path === path));
+    folderPath = parent?.path ?? null;
+    if (parent) expanded.add(parent.path);
+    filePath = path;
+  }
+
+  async function fileMenu(file: File) {
     const choice = await api.contextMenu([
       { id: "rename", label: "Rename…" },
       { id: "trash", label: "Move to Trash" },
     ]);
     if (choice === "rename") {
-      const name = await ask("Rename PDF", "Rename", baseName(pdf.name));
+      const name = await ask(isMarkdown(file.path) ? "Rename Markdown File" : "Rename PDF", "Rename", baseName(file.name));
       if (name == null) return;
       await perform(async () => {
-        const renamed = await api.renamePDF(pdf.path, name);
-        if (pdfPath === pdf.path) pdfPath = renamed;
+        if (markdownPath === file.path) await markdown?.flush();
+        const renamed = await api.renameFile(file.path, name);
+        if (filePath === file.path) filePath = renamed;
         await reload();
       });
     } else if (choice === "trash") {
       await perform(async () => {
-        await api.trashPDF(pdf.path);
-        if (pdfPath === pdf.path) pdfPath = null;
+        // Closing first lets pending saves land before the file moves, so they can't recreate it.
+        if (filePath === file.path) {
+          await markdown?.flush();
+          filePath = null;
+          await tick();
+        }
+        await api.trashFile(file.path);
         await reload();
       });
     }
   }
 
   async function folderMenu(target: Folder) {
-    const choice = await api.contextMenu([{ id: "import", label: "Import PDF…" }]);
-    if (choice === "import") {
-      folderPath = target.path;
-      await importInto(target.path);
-    }
+    const choice = await api.contextMenu([
+      { id: "import", label: "Import PDF…" },
+      { id: "markdown", label: "New Markdown File…" },
+    ]);
+    folderPath = target.path;
+    if (choice === "import") await importInto(target.path);
+    else if (choice === "markdown") await newMarkdown(target.path);
   }
 
   function toggleFolder(target: Folder) {
@@ -198,10 +223,10 @@
           <ul role="tree">
             {#each folders as f (f.path)}
               {@const open = expanded.has(f.path)}
-              <li role="treeitem" aria-expanded={open} aria-selected={folderPath === f.path && !pdfPath}>
+              <li role="treeitem" aria-expanded={open} aria-selected={folderPath === f.path && !filePath}>
                 <button
                   class="row"
-                  class:selected={folderPath === f.path && !pdfPath}
+                  class:selected={folderPath === f.path && !filePath}
                   onclick={() => toggleFolder(f)}
                   oncontextmenu={() => folderMenu(f)}
                 >
@@ -210,16 +235,16 @@
                 </button>
                 {#if open}
                   <ul role="group" transition:reveal>
-                    {#each f.pdfs as pdf (pdf.path)}
-                      <li role="treeitem" aria-selected={pdfPath === pdf.path}>
+                    {#each [...f.pdfs, ...f.markdown].sort(byName) as file (file.path)}
+                      <li role="treeitem" aria-selected={filePath === file.path}>
                         <button
-                          class="row pdf"
-                          class:selected={pdfPath === pdf.path}
-                          onclick={() => openPDF(pdf.path)}
-                          oncontextmenu={() => pdfMenu(pdf)}
+                          class="row file"
+                          class:selected={filePath === file.path}
+                          onclick={() => openFile(file.path)}
+                          oncontextmenu={() => fileMenu(file)}
                         >
-                          <img src={pdfIcon} alt="" />
-                          <span class="label">{pdf.name}</span>
+                          <img src={isMarkdown(file.path) ? icons.md : icons.pdf} alt="" />
+                          <span class="label">{file.name}</span>
                         </button>
                       </li>
                     {/each}
@@ -240,7 +265,17 @@
         inset={showingSidebar ? SIDEBAR_INSET : 0}
         onerror={showError}
       />
-      {#if pdfPath}
+      {#if markdownPath}
+        {#key markdownPath}
+          <MarkdownEditor
+            bind:this={markdown}
+            path={markdownPath}
+            inset={showingSidebar ? SIDEBAR_INSET : 0}
+            onerror={showError}
+            {ask}
+          />
+        {/key}
+      {:else if pdfPath}
         <div id="bottom-toolbar" class="floating" style:--inset="{showingSidebar ? SIDEBAR_INSET : 0}px">
           {@render iconButton("notes", "Notes", () => (showingNotes = !showingNotes), false, showingNotes)}
           {@render iconButton("pageNote", "Add Note to Page", () => (placingNote = !placingNote), false, placingNote)}

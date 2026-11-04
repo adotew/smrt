@@ -1,9 +1,9 @@
 # Smrt
 
-A PDF library and reader with per-page notes, built with Electron, Svelte, TypeScript and pdf.js.
-It runs on macOS, Windows and Linux.
+A PDF library and reader with per-page notes and a markdown editor, built with Electron, Svelte,
+TypeScript, pdf.js and Tiptap. It runs on macOS, Windows and Linux.
 
-PDFs live in folders inside the `Library` folder in Smrt's app data directory:
+PDFs and markdown files live in folders inside the `Library` folder in Smrt's app data directory:
 
 | System  | Library folder                                 |
 | ------- | ---------------------------------------------- |
@@ -18,6 +18,9 @@ for the last page and zoom.
 Right-click a page to insert a blank page after it, duplicate, rotate or delete it.
 These edits rewrite the PDF itself; the previous version goes to the Trash each time.
 Undo covers page edits, highlights, notes and text boxes until you open another PDF or quit.
+
+Right-click a folder and choose **New Markdown File…** to write notes of your own. They are
+plain `.md` files, saved as you type; images are embedded in them as data URLs.
 
 On first launch, an existing library from the old macpdf app is copied over; the
 original folder is left as it was.
@@ -81,5 +84,5 @@ npm test
 `check` type-checks the whole app, including the Svelte components. The IPC API in
 `window.smrt` is typed from the handlers in `electron/main.ts`.
 
-Tests cover folder and name validation, PDF importing and renaming, notes, reading
-positions, page edits, and duplicate-file protection in `electron/library.ts`.
+Tests cover folder and name validation, PDF importing and renaming, markdown files, notes,
+reading positions, page edits, and duplicate-file protection in `electron/library.ts`.

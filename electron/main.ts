@@ -41,9 +41,10 @@ async function importPDF(window: BrowserWindow, folder: string) {
   return canceled || !filePaths[0] ? null : library.importPDF(filePaths[0], folder);
 }
 
-/** The system's PDF file icon, as a data URL. */
-async function icon() {
-  const target = path.join(app.getPath("temp"), "smrt-icon.pdf");
+/** The system's icon for PDF or markdown files, as a data URL. */
+async function icon(extension: "pdf" | "md") {
+  if (extension !== "pdf" && extension !== "md") throw new Error("Unknown file type.");
+  const target = path.join(app.getPath("temp"), `smrt-icon.${extension}`);
   fs.writeFileSync(target, "");
   // getFileIcon's "large" size crashes on macOS.
   return (await app.getFileIcon(target, { size: isMac ? "normal" : "large" })).toDataURL();
@@ -102,7 +103,7 @@ function buildMenu(window: BrowserWindow) {
 
 /** Everything the renderer may invoke; preload.ts exposes these as `window.smrt`. */
 function createHandlers(window: BrowserWindow) {
-  const { inLibrary, ...exposed } = library;
+  const { inLibrary: _inLibrary, ...exposed } = library;
   return {
     ...exposed,
     importPDF: (folder: string) => importPDF(window, folder),
@@ -133,6 +134,9 @@ app.whenReady().then(() => {
     ipcMain.handle(channel, (_event, ...args) => (fn as (...args: unknown[]) => unknown)(...args));
   }
 
+  // A clicked or dropped link would otherwise replace the app with the page.
+  window.webContents.on("will-navigate", (event) => event.preventDefault());
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.on("enter-full-screen", () => window.webContents.send("fullscreen", true));
   window.on("leave-full-screen", () => window.webContents.send("fullscreen", false));
   window.once("ready-to-show", () => window.show());

@@ -46,15 +46,15 @@ test("renaming and trashing keep notes with their PDF", async () => {
   const folder = library.createFolder("Math");
   const pdf = library.importPDF(source, folder);
   library.saveNotes(pdf, { 1: "first", 2: "" });
-  const renamed = library.renamePDF(pdf, "Lecture 1.pdf");
+  const renamed = library.renameFile(pdf, "Lecture 1.pdf");
   assert.equal(path.basename(renamed), "Lecture 1.pdf");
   assert.deepEqual(library.readNotes(renamed), { 1: "first" });
-  assert.equal(library.renamePDF(renamed, "lecture 1"), path.join(folder, "lecture 1.pdf"));
+  assert.equal(library.renameFile(renamed, "lecture 1"), path.join(folder, "lecture 1.pdf"));
 
   library.importPDF(source, folder);
-  assert.throws(() => library.renamePDF(path.join(folder, "Paper.pdf"), "lecture 1"), /already exists/);
+  assert.throws(() => library.renameFile(path.join(folder, "Paper.pdf"), "lecture 1"), /already exists/);
 
-  await library.trashPDF(path.join(folder, "lecture 1.pdf"));
+  await library.trashFile(path.join(folder, "lecture 1.pdf"));
   assert.deepEqual(trashed.map((f) => path.basename(f)), ["lecture 1.pdf", "lecture 1.notes.json"]);
 });
 
@@ -78,7 +78,7 @@ test("annotations round-trip, follow renames and vanish when empty", () => {
     pageNotes: [{ id: "b", page: 1, x: 0.5, y: 0.5, text: "hi" }],
   };
   library.saveAnnotations(pdf, annotations);
-  const renamed = library.renamePDF(pdf, "Lecture");
+  const renamed = library.renameFile(pdf, "Lecture");
   assert.deepEqual(library.readAnnotations(renamed), annotations);
   assert.throws(() => library.saveAnnotations(renamed, {} as never), /list of highlights/);
   library.saveAnnotations(renamed, { highlights: [], pageNotes: [] });
@@ -93,9 +93,9 @@ test("positions use a sidecar that follows the PDF", async () => {
   assert.ok(fs.existsSync(pdf.replace(/\.pdf$/, ".position.json")));
   assert.deepEqual(library.listLibrary()[0].pdfs.map((p) => p.name), ["Paper.pdf"]);
 
-  const renamed = library.renamePDF(pdf, "Lecture");
+  const renamed = library.renameFile(pdf, "Lecture");
   assert.deepEqual(await library.readPosition(renamed), { page: 2 });
-  await library.trashPDF(renamed);
+  await library.trashFile(renamed);
   assert.deepEqual(trashed.map((f) => path.basename(f)), ["Lecture.pdf", "Lecture.position.json"]);
 });
 
@@ -184,4 +184,22 @@ test("page edits keep versions that can be restored", async () => {
   for (const id of ["../Two.pdf", "a/b.pdf", "x.json", undefined]) {
     await assert.rejects(library.restoreVersion(pdf, id as string), /doesn't exist/);
   }
+});
+
+test("markdown files are created, saved, listed, renamed and trashed", async () => {
+  const { library, source, trashed } = setup();
+  const folder = library.createFolder("Math");
+  const pdf = library.importPDF(source, folder);
+  const file = library.createMarkdown(folder, "Ideas.md");
+  assert.equal(path.basename(file), "Ideas.md");
+  assert.throws(() => library.createMarkdown(folder, "Ideas"), /already exists/);
+  await library.saveMarkdown(file, "# Ideas\n");
+  assert.equal(await library.readMarkdown(file), "# Ideas\n");
+  assert.throws(() => library.readMarkdown(pdf), /isn.t a markdown file/);
+  assert.deepEqual(library.listLibrary()[0].markdown.map((f) => f.name), ["Ideas.md"]);
+
+  const renamed = library.renameFile(file, "Plans");
+  assert.equal(path.basename(renamed), "Plans.md");
+  await library.trashFile(renamed);
+  assert.deepEqual(trashed.map((f) => path.basename(f)), ["Plans.md"]);
 });
