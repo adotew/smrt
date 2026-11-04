@@ -29,7 +29,6 @@ const channels: Record<keyof Handlers, true> = {
   savePosition: true,
   editPage: true,
   restoreVersion: true,
-  icon: true,
   contextMenu: true,
 };
 

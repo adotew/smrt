@@ -41,15 +41,6 @@ async function importPDF(window: BrowserWindow, folder: string) {
   return canceled || !filePaths[0] ? null : library.importPDF(filePaths[0], folder);
 }
 
-/** The system's icon for PDF or markdown files, as a data URL. */
-async function icon(extension: "pdf" | "md") {
-  if (extension !== "pdf" && extension !== "md") throw new Error("Unknown file type.");
-  const target = path.join(app.getPath("temp"), `smrt-icon.${extension}`);
-  fs.writeFileSync(target, "");
-  // getFileIcon's "large" size crashes on macOS.
-  return (await app.getFileIcon(target, { size: isMac ? "normal" : "large" })).toDataURL();
-}
-
 function contextMenu(window: BrowserWindow, items: MenuItem[]) {
   return new Promise<string | null>((resolve) => {
     let chosen: string | null = null;
@@ -107,7 +98,6 @@ function createHandlers(window: BrowserWindow) {
   return {
     ...exposed,
     importPDF: (folder: string) => importPDF(window, folder),
-    icon,
     contextMenu: (items: MenuItem[]) => contextMenu(window, items),
   };
 }

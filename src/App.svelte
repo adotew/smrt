@@ -5,6 +5,7 @@
   import { SvelteSet } from "svelte/reactivity";
   import type { Folder } from "../electron/library.ts";
   import EmptyState from "./EmptyState.svelte";
+  import FileIcon from "./FileIcon.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
   import MarkdownEditor from "./MarkdownEditor.svelte";
   import Reader from "./Reader.svelte";
@@ -26,7 +27,6 @@
   let placingNote = $state(false);
   let showingSidebar = $state(true);
   let fullscreen = $state(false);
-  let icons = $state({ pdf: "", md: "" });
   let reader: Reader | undefined = $state();
   let markdown: MarkdownEditor | undefined = $state();
 
@@ -53,10 +53,7 @@
   const baseName = (name: string) => name.replace(/\.(pdf|md)$/i, "");
   const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
 
-  onMount(async () => {
-    icons = { pdf: await api.icon("pdf"), md: await api.icon("md") };
-    await perform(reload);
-  });
+  onMount(() => perform(reload));
 
   api.on("fullscreen", (value) => (fullscreen = value));
   api.on("command", (command) => {
@@ -243,7 +240,7 @@
                           onclick={() => openFile(file.path)}
                           oncontextmenu={() => fileMenu(file)}
                         >
-                          <img src={isMarkdown(file.path) ? icons.md : icons.pdf} alt="" />
+                          <FileIcon type={isMarkdown(file.path) ? "md" : "pdf"} size={22} />
                           <span class="label">{file.name}</span>
                         </button>
                       </li>
