@@ -276,7 +276,7 @@ main {
   position: absolute;
   top: 0;
   left: 0;
-  z-index: 1;
+  z-index: 2;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -311,8 +311,9 @@ main {
 #bottom-toolbar {
   position: absolute;
   bottom: 12px;
-  left: 50%;
+  left: calc(50% + var(--inset, 0px) / 2);
   transform: translateX(-50%);
+  transition: left 0.2s;
   z-index: 1;
   display: flex;
   align-items: center;
@@ -330,7 +331,12 @@ main {
   position: absolute;
   left: 6px;
   bottom: 6px;
-  z-index: 1;
+  z-index: 2;
+}
+
+#sidebar-toggle:not(.floating) {
+  left: 14px;
+  bottom: 14px;
 }
 
 #reader-controls,
@@ -338,6 +344,7 @@ main {
   transition:
     top 0.2s,
     left 0.2s,
+    bottom 0.2s,
     height 0.2s,
     padding 0.2s,
     background-color 0.2s,
@@ -350,20 +357,29 @@ main {
 
 .floating {
   border-radius: 999px;
-  background: color-mix(in srgb, var(--sidebar) 60%, transparent);
+  background: color-mix(in srgb, var(--sidebar) 80%, transparent);
   backdrop-filter: blur(20px) saturate(180%);
   box-shadow:
     0 0 0 0.5px var(--separator),
     0 2px 8px rgb(0 0 0 / 0.15);
 }
 
+/* Floats over the document so the pages show through, like the toolbar pills. */
 #sidebar {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  bottom: 8px;
+  z-index: 1;
   width: 240px;
-  flex: none;
   overflow: auto;
-  padding: 52px 10px 44px;
-  background: var(--sidebar);
-  border-right: 1px solid var(--separator);
+  padding: 52px 10px 52px;
+  background: color-mix(in srgb, var(--sidebar) 80%, transparent);
+  backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 18px;
+  box-shadow:
+    0 0 0 0.5px var(--separator),
+    0 2px 8px rgb(0 0 0 / 0.15);
   display: flex;
   flex-direction: column;
 }
@@ -382,7 +398,7 @@ main {
   height: 32px;
   padding: 0 6px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 10px;
   background: none;
   text-align: left;
 }
@@ -430,6 +446,7 @@ main {
   flex-direction: column;
   /* Room to scroll the last page clear of the bottom toolbar. */
   padding: 12px 0 64px;
+  transition: padding-left 0.2s;
 }
 
 .page-row {

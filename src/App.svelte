@@ -14,6 +14,9 @@
 
   type PDF = Folder["pdfs"][number];
 
+  /** The floating sidebar's width plus its margin and the gap beside it; matches `#sidebar` in app.css. */
+  const SIDEBAR_INSET = 256;
+
   let folders: Folder[] = $state([]);
   let expanded = new SvelteSet<string>();
   /** Folder shown in the overview and used for imports. */
@@ -23,7 +26,6 @@
   let showingNotes = $state(false);
   let placingNote = $state(false);
   let showingSidebar = $state(true);
-  let sidebarAnimating = $state(false);
   let fullscreen = $state(false);
   let icons: Record<string, string> = $state({});
   let reader: Reader | undefined = $state();
@@ -302,10 +304,6 @@
         <aside
           id="sidebar"
           transition:slide={{ axis: "x", duration: 200 }}
-          onintrostart={() => (sidebarAnimating = true)}
-          onoutrostart={() => (sidebarAnimating = true)}
-          onintroend={() => (sidebarAnimating = false)}
-          onoutroend={() => (sidebarAnimating = false)}
         >
           {#if folders.length === 0}
             <EmptyState icon="newFolder" title="Create a folder" />
@@ -352,11 +350,11 @@
           path={pdfPath}
           {showingNotes}
           bind:placingNote
-          resizing={sidebarAnimating}
+          inset={showingSidebar ? SIDEBAR_INSET : 0}
           onerror={showError}
         />
         {#if pdfPath}
-          <div id="bottom-toolbar" class="floating">
+          <div id="bottom-toolbar" class="floating" style:--inset="{showingSidebar ? SIDEBAR_INSET : 0}px">
             {@render iconButton("notes", "Notes", () => (showingNotes = !showingNotes), false, showingNotes)}
             {@render iconButton("pageNote", "Add Note to Page", () => (placingNote = !placingNote), false, placingNote)}
           </div>

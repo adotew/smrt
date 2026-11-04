@@ -34,13 +34,14 @@
     path,
     showingNotes,
     placingNote = $bindable(false),
-    resizing = false,
+    inset = 0,
     onerror,
   }: {
     path: string | null;
     showingNotes: boolean;
     placingNote?: boolean;
-    resizing?: boolean;
+    /** Width on the left covered by the floating sidebar; pages are laid out beside it. */
+    inset?: number;
     onerror: (error: unknown) => void;
   } = $props();
 
@@ -61,8 +62,6 @@
   let undoStack: Step[] = [];
   let redoStack: Step[] = [];
   let containerWidth = $state(0);
-  /** Holds still while the sidebar animates, so pages are laid out once at the end instead of every frame. */
-  let fitWidth = $state(0);
   let container: HTMLElement;
   let rows: HTMLElement[] = [];
   let sheets: Sheet[] = [];
@@ -75,14 +74,10 @@
       ? 1
       : Math.max(
           0.1,
-          (fitWidth - (withNotes ? NOTES_WIDTH + PAGE_GAP : 0) - PAGE_GAP * 2) / Math.max(...pages.map((p) => p.width)),
+          (containerWidth - inset - (withNotes ? NOTES_WIDTH + PAGE_GAP : 0) - PAGE_GAP * 2) / Math.max(...pages.map((p) => p.width)),
         ),
   );
   const effective = $derived(scale ?? fit);
-
-  $effect(() => {
-    if (!resizing) fitWidth = containerWidth;
-  });
 
   const observer = new IntersectionObserver(
     (entries) => {
@@ -545,6 +540,7 @@
   role="document"
   bind:this={container}
   bind:clientWidth={containerWidth}
+  style:padding-left="{inset}px"
   {onscroll}
   {onpointerup}
   {@attach (element) => {
