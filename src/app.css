@@ -1,3 +1,9 @@
+@font-face {
+  font-family: Heming;
+  src: url("./fonts/heming-variable.ttf") format("truetype");
+  font-weight: 100 900;
+}
+
 :root {
   color-scheme: light dark;
   --background: #fff;
@@ -117,6 +123,12 @@ button {
   padding: 0 8px;
   font-size: 13px;
   font-weight: 600;
+}
+
+.brand {
+  font-family: Heming, system-ui;
+  font-size: 22px;
+  font-weight: 400;
 }
 
 .breadcrumbs .icon {

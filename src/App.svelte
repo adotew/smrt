@@ -203,11 +203,11 @@
   <header id="toolbar" class:windowed>
     <nav class="breadcrumbs">
       {#if folder}
-        <button class="crumb" onclick={showOverview}>Library</button>
+        <button class="crumb" onclick={showOverview}>Home</button>
         <Icon name="chevronRight" size={14} />
         <span>{folder.name}</span>
       {:else}
-        <span>Library</span>
+        <span class="brand">Smrt</span>
       {/if}
     </nav>
     <div class="spacer"></div>
@@ -280,7 +280,7 @@
     <section id="reader">
       <div id="drag-strip"></div>
       <div id="reader-controls" class:windowed class:floating={!showingSidebar}>
-        {@render iconButton("library", "Back to Library", showOverview)}
+        {@render iconButton("library", "Back to Home", showOverview)}
         {@render iconButton("newFolder", "New Folder", newFolder)}
         {@render iconButton("add", "Import PDF", () => importInto(folderPath), !folderPath)}
       </div>
