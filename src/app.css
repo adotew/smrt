@@ -74,7 +74,7 @@ button {
 
 /* Leaves room for the traffic lights outside fullscreen. */
 #toolbar.windowed {
-  padding-left: 82px;
+  padding-left: 90px;
 }
 
 #toolbar button {
@@ -238,16 +238,24 @@ main {
 /* Reader */
 
 #reader {
+  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
+}
+
+#sidebar-toggle {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 1;
 }
 
 #sidebar {
   width: 240px;
   flex: none;
   overflow: auto;
-  padding: 4px 10px;
+  padding: 4px 10px 44px;
   background: var(--sidebar);
   border-right: 1px solid var(--separator);
   display: flex;

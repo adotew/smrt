@@ -250,6 +250,9 @@
     </section>
   {:else}
     <section id="reader">
+      <div id="sidebar-toggle">
+        {@render iconButton("sidebar", showingSidebar ? "Hide Sidebar" : "Show Sidebar", () => (showingSidebar = !showingSidebar))}
+      </div>
       {#if showingSidebar}
         <aside id="sidebar">
           {#if folders.length === 0}
