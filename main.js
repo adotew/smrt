@@ -8,8 +8,11 @@ const isMac = process.platform === "darwin";
 // Dev runs show "Electron" otherwise.
 app.setName("Smrt");
 
-// The library keeps the Swift app's folder name so both apps share it.
-const library = createLibrary(path.join(app.getPath("appData"), "macpdf"), { trash: (file) => shell.trashItem(file) });
+const libraryPath = path.join(app.getPath("userData"), "Library");
+// One-time copy of the library from the deprecated Swift app; its folder is left untouched.
+const swiftLibrary = path.join(app.getPath("appData"), "macpdf");
+if (!fs.existsSync(libraryPath) && fs.existsSync(swiftLibrary)) fs.cpSync(swiftLibrary, libraryPath, { recursive: true });
+const library = createLibrary(libraryPath, { trash: (file) => shell.trashItem(file) });
 
 async function importPDF(window, folder) {
   const { canceled, filePaths } = await dialog.showOpenDialog(window, {

@@ -1,22 +1,22 @@
 # Smrt
 
 A PDF library and reader with per-page notes, built with Electron, Svelte and pdf.js.
-It runs on macOS, Windows and Linux, and started as a port of the SwiftUI
-[macpdf](../macpdf) app.
+It runs on macOS, Windows and Linux.
 
-PDFs live in folders inside a `macpdf` library folder in the system's app data
-directory:
+PDFs live in folders inside the `Library` folder in Smrt's app data directory:
 
-| System  | Library folder                             |
-| ------- | ------------------------------------------ |
-| macOS   | `~/Library/Application Support/macpdf/`    |
-| Windows | `%APPDATA%\macpdf\`                        |
-| Linux   | `~/.config/macpdf/`                        |
+| System  | Library folder                                 |
+| ------- | ---------------------------------------------- |
+| macOS   | `~/Library/Application Support/Smrt/Library/`  |
+| Windows | `%APPDATA%\Smrt\Library\`                     |
+| Linux   | `~/.config/Smrt/Library/`                      |
 
-Notes are saved next to each PDF as `<name>.notes.json`. On macOS, the last page and
-zoom are stored in the PDF's `dev.macpdf.reading-position` extended attribute, so the
-Swift app shares the same library, notes and positions. On Windows and Linux, they go
-in a `<name>.position.json` file next to the PDF.
+Each PDF can have sidecar files next to it: `<name>.notes.json` for page notes,
+`<name>.annotations.json` for highlights and text boxes, and `<name>.position.json`
+for the last page and zoom.
+
+On first launch, an existing library from the old macpdf app is copied over; the
+original folder is left as it was.
 
 ## Run
 

@@ -1,16 +1,8 @@
-const { execFile } = require("node:child_process");
 const fs = require("node:fs");
 const path = require("node:path");
 
-// Shared with the Swift app so both read the same reading positions.
-const positionAttribute = "dev.macpdf.reading-position";
-
-/**
- * Folders of PDFs under `libraryPath`, mirroring the Swift app's Library.
- * Reading positions live in an extended attribute on macOS, where the Swift app reads them,
- * and in a `<name>.position.json` sidecar elsewhere.
- */
-function createLibrary(libraryPath, { trash, xattrPositions = process.platform === "darwin" }) {
+/** Folders of PDFs under `libraryPath`, each with optional sidecar files next to it. */
+function createLibrary(libraryPath, { trash }) {
   fs.mkdirSync(libraryPath, { recursive: true });
   const root = fs.realpathSync(libraryPath);
 
@@ -150,14 +142,8 @@ function createLibrary(libraryPath, { trash, xattrPositions = process.platform =
     writeSidecar(annotationsPath(inLibrary(pdf)), empty ? null : annotations);
   }
 
-  const xattr = (...args) =>
-    new Promise((resolve) => execFile("/usr/bin/xattr", args, (error, stdout) => resolve(error ? null : stdout)));
-
   async function readPosition(pdf) {
-    pdf = inLibrary(pdf);
-    const value = xattrPositions
-      ? await xattr("-p", positionAttribute, pdf)
-      : await fs.promises.readFile(positionPath(pdf), "utf8").catch(() => null);
+    const value = await fs.promises.readFile(positionPath(inLibrary(pdf)), "utf8").catch(() => null);
     try {
       return value && JSON.parse(value);
     } catch {
@@ -167,10 +153,7 @@ function createLibrary(libraryPath, { trash, xattrPositions = process.platform =
 
   // Losing a reading position is harmless, so write failures are ignored.
   async function savePosition(pdf, position) {
-    pdf = inLibrary(pdf);
-    const value = JSON.stringify(position);
-    if (xattrPositions) await xattr("-w", positionAttribute, value, pdf);
-    else await fs.promises.writeFile(positionPath(pdf), value).catch(() => {});
+    await fs.promises.writeFile(positionPath(inLibrary(pdf)), JSON.stringify(position)).catch(() => {});
   }
 
   return {

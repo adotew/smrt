@@ -80,8 +80,8 @@ test("annotations round-trip, follow renames and vanish when empty", () => {
   assert.equal(fs.existsSync(renamed.replace(/\.pdf$/, ".annotations.json")), false);
 });
 
-test("without xattrs, positions use a sidecar that follows the PDF", async () => {
-  const { library, source, trashed } = setup({ xattrPositions: false });
+test("positions use a sidecar that follows the PDF", async () => {
+  const { library, source, trashed } = setup();
   const pdf = library.importPDF(source, library.createFolder("Math"));
   assert.equal(await library.readPosition(pdf), null);
   await library.savePosition(pdf, { page: 2 });
