@@ -101,10 +101,7 @@ app.whenReady().then(() => {
   for (const [event, value] of [["enter-full-screen", true], ["leave-full-screen", false]]) {
     window.on(event, () => window.webContents.send("fullscreen", value));
   }
-  window.once("ready-to-show", () => {
-    window.show();
-    window.setFullScreen(true);
-  });
+  window.once("ready-to-show", () => window.show());
   window.loadFile("dist/index.html");
 });
 

@@ -14,9 +14,8 @@ npm install
 npm start
 ```
 
-`npm start` builds the Svelte renderer into `dist/` and launches Electron. The window
-goes fullscreen when it opens. Use **Control + Command + F** to leave or re-enter
-fullscreen, **Control + Command + S** to toggle the sidebar, and **Command + Shift + N**
+`npm start` builds the Svelte renderer into `dist/` and launches Electron. Use
+**Control + Command + F** to toggle fullscreen, **Control + Command + S** to toggle the sidebar, and **Command + Shift + N**
 to toggle notes. Zoom with a pinch, **Command + =/−**, **Command + 0** (actual size),
 or **Command + 9** (fit).
 
