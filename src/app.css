@@ -402,6 +402,10 @@ main {
   transition: transform 0.15s;
 }
 
+.chevron .icon {
+  stroke-width: 2.5;
+}
+
 .chevron.open {
   transform: rotate(90deg);
 }

@@ -5,6 +5,9 @@ const { createLibrary } = require("./library");
 
 const isMac = process.platform === "darwin";
 
+// Dev runs show "Electron" otherwise.
+app.setName("Smrt");
+
 // The library keeps the Swift app's folder name so both apps share it.
 const library = createLibrary(path.join(app.getPath("appData"), "macpdf"), { trash: (file) => shell.trashItem(file) });
 
