@@ -1,17 +1,18 @@
-const assert = require("node:assert/strict");
-const fs = require("node:fs");
-const os = require("node:os");
-const path = require("node:path");
-const test = require("node:test");
-const { createLibrary } = require("./library");
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import test from "node:test";
+import { PDFDocument } from "pdf-lib";
+import { createLibrary } from "./library.ts";
+import type { Annotations } from "./library.ts";
 
-function setup(options) {
+function setup() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "smrt-"));
-  const trashed = [];
+  const trashed: string[] = [];
   const library = createLibrary(path.join(dir, "library"), {
     trash: async (file) => trashed.push(file),
     versionsPath: path.join(dir, "versions"),
-    ...options,
   });
   const source = path.join(dir, "Paper.pdf");
   fs.writeFileSync(source, "%PDF-1.4\n%%EOF\n");
@@ -72,14 +73,14 @@ test("annotations round-trip, follow renames and vanish when empty", () => {
   const { library, source } = setup();
   const pdf = library.importPDF(source, library.createFolder("Math"));
   assert.deepEqual(library.readAnnotations(pdf), { highlights: [], pageNotes: [] });
-  const annotations = {
+  const annotations: Annotations = {
     highlights: [{ id: "a", page: 1, color: "yellow", rects: [[0.1, 0.2, 0.3, 0.02]] }],
     pageNotes: [{ id: "b", page: 1, x: 0.5, y: 0.5, text: "hi" }],
   };
   library.saveAnnotations(pdf, annotations);
   const renamed = library.renamePDF(pdf, "Lecture");
   assert.deepEqual(library.readAnnotations(renamed), annotations);
-  assert.throws(() => library.saveAnnotations(renamed, {}), /list of highlights/);
+  assert.throws(() => library.saveAnnotations(renamed, {} as never), /list of highlights/);
   library.saveAnnotations(renamed, { highlights: [], pageNotes: [] });
   assert.equal(fs.existsSync(renamed.replace(/\.pdf$/, ".annotations.json")), false);
 });
@@ -99,7 +100,6 @@ test("positions use a sidecar that follows the PDF", async () => {
 });
 
 test("page edits keep sidecars on their pages and trash the original", async () => {
-  const { PDFDocument } = require("pdf-lib");
   const { dir, library, trashed } = setup();
   const doc = await PDFDocument.create();
   for (const width of [100, 200, 300]) doc.addPage([width, 400]);
@@ -130,7 +130,7 @@ test("page edits keep sidecars on their pages and trash the original", async () 
   assert.deepEqual(library.readAnnotations(pdf).highlights[0].rects, [[0.75, 0.1, 0.05, 0.3]]);
   await library.editPage(pdf, { action: "rotate", page: 4, rotate: -90 });
   assert.deepEqual((await pages())[3], [300, 270]);
-  assert.deepEqual(library.readAnnotations(pdf).pageNotes[0], { id: "n", page: 4, x: 0.5, y: 0.75, text: "hi" });
+  assert.deepEqual(library.readAnnotations(pdf).pageNotes?.[0], { id: "n", page: 4, x: 0.5, y: 0.75, text: "hi" });
 
   await library.editPage(pdf, { action: "delete", page: 3 });
   assert.deepEqual(await pages(), [[100, 0], [100, 0], [300, 270], [300, 0]]);
@@ -142,11 +142,10 @@ test("page edits keep sidecars on their pages and trash the original", async () 
   assert.ok(trashed.every((file) => file === pdf));
   assert.equal(fs.existsSync(pdf + ".tmp"), false);
   await assert.rejects(library.editPage(pdf, { action: "delete", page: 9 }), /doesn't exist/);
-  await assert.rejects(library.editPage(pdf, { action: "rotate", page: 1, rotate: 45 }), /Unknown page edit/);
+  await assert.rejects(library.editPage(pdf, { action: "rotate", page: 1, rotate: 45 } as never), /Unknown page edit/);
 });
 
 test("the last page can't be deleted", async () => {
-  const { PDFDocument } = require("pdf-lib");
   const { dir, library } = setup();
   const doc = await PDFDocument.create();
   doc.addPage();
@@ -157,7 +156,6 @@ test("the last page can't be deleted", async () => {
 });
 
 test("page edits keep versions that can be restored", async () => {
-  const { PDFDocument } = require("pdf-lib");
   const { dir, library } = setup();
   const doc = await PDFDocument.create();
   doc.addPage();
@@ -174,6 +172,6 @@ test("page edits keep versions that can be restored", async () => {
   await library.restoreVersion(pdf, after);
   assert.equal(await count(), 1);
   for (const id of ["../Two.pdf", "a/b.pdf", "x.json", undefined]) {
-    await assert.rejects(library.restoreVersion(pdf, id), /doesn't exist/);
+    await assert.rejects(library.restoreVersion(pdf, id as string), /doesn't exist/);
   }
 });

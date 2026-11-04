@@ -1,45 +1,51 @@
-<script>
+<script lang="ts">
   import { onMount } from "svelte";
   import { slide } from "svelte/transition";
   import { SvelteSet } from "svelte/reactivity";
+  import type { Snippet } from "svelte";
+  import type { Folder } from "../electron/library.ts";
   import EmptyState from "./EmptyState.svelte";
-  import Icon from "./Icon.svelte";
-  import { renderCover } from "./pdf.js";
+  import Icon, { type IconName } from "./Icon.svelte";
+  import { renderCover } from "./pdf.ts";
   import Reader from "./Reader.svelte";
 
   const api = window.smrt;
 
-  let folders = $state([]);
-  let expanded = new SvelteSet();
+  type PDF = Folder["pdfs"][number];
+
+  let folders: Folder[] = $state([]);
+  let expanded = new SvelteSet<string>();
   /** Folder shown in the overview and used for imports. */
-  let folderPath = $state(null);
-  let pdfPath = $state(null);
+  let folderPath: string | null = $state(null);
+  let pdfPath: string | null = $state(null);
   let showingOverview = $state(true);
   let showingNotes = $state(false);
   let placingNote = $state(false);
   let showingSidebar = $state(true);
   let sidebarAnimating = $state(false);
   let fullscreen = $state(false);
-  let icons = $state({});
-  let reader = $state();
+  let icons: Record<string, string> = $state({});
+  let reader: Reader | undefined = $state();
 
-  let promptDialog;
+  let promptDialog: HTMLDialogElement;
   let prompt = $state({ title: "", confirm: "", value: "" });
-  let alertDialog;
+  let alertDialog: HTMLDialogElement;
   let alertMessage = $state("");
 
   const folder = $derived(folders.find((f) => f.path === folderPath));
   // Leaves room for the traffic lights outside fullscreen.
   const windowed = $derived(api.platform === "darwin" && !fullscreen);
-  const baseName = (name) => name.replace(/\.pdf$/i, "");
+  const baseName = (name: string) => name.replace(/\.pdf$/i, "");
 
   onMount(async () => {
     const entries = await Promise.all(
-      [
-        ["folder", 256],
-        ["pdf", 32],
-        ["pdf", 256],
-      ].map(async ([kind, size]) => [`${kind}${size}`, await api.icon(kind, size)]),
+      (
+        [
+          ["folder", 256],
+          ["pdf", 32],
+          ["pdf", 256],
+        ] as const
+      ).map(async ([kind, size]) => [`${kind}${size}`, await api.icon(kind, size)]),
     );
     icons = Object.fromEntries(entries);
     await perform(reload);
@@ -48,12 +54,13 @@
   api.on("fullscreen", (value) => (fullscreen = value));
   api.on("command", (command) => {
     const field = document.activeElement;
-    if ((command === "undo" || command === "redo") && field?.matches("input, textarea") && !field.readOnly) {
+    const editable = (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) && !field.readOnly;
+    if ((command === "undo" || command === "redo") && editable) {
       document.execCommand(command);
       return;
     }
     if (showingOverview) return;
-    const commands = {
+    const commands: Partial<Record<typeof command, () => void>> = {
       toggleSidebar: () => (showingSidebar = !showingSidebar),
       toggleNotes: () => (showingNotes = !showingNotes),
       zoomIn: () => reader?.zoomIn(),
@@ -66,12 +73,12 @@
     commands[command]?.();
   });
 
-  function showError(error) {
-    alertMessage = String(error?.message ?? error).replace(/^Error invoking remote method '\w+': (Error: )?/, "");
+  function showError(error: unknown) {
+    alertMessage = String(error instanceof Error ? error.message : error).replace(/^Error invoking remote method '\w+': (Error: )?/, "");
     alertDialog.showModal();
   }
 
-  async function perform(action) {
+  async function perform(action: () => Promise<void>) {
     try {
       await action();
     } catch (error) {
@@ -79,7 +86,7 @@
     }
   }
 
-  function ask(title, confirm, value = "") {
+  function ask(title: string, confirm: string, value = ""): Promise<string | null> {
     prompt = { title, confirm, value };
     promptDialog.returnValue = "";
     promptDialog.showModal();
@@ -105,8 +112,9 @@
     });
   }
 
-  async function importInto(target) {
+  async function importInto(target: string | null) {
     await perform(async () => {
+      if (!target) return;
       const imported = await api.importPDF(target);
       if (!imported) return;
       await reload();
@@ -114,7 +122,7 @@
     });
   }
 
-  function openPDF(path) {
+  function openPDF(path: string) {
     const parent = folders.find((f) => f.pdfs.some((p) => p.path === path));
     folderPath = parent?.path ?? null;
     if (parent) expanded.add(parent.path);
@@ -128,7 +136,7 @@
     showingOverview = true;
   }
 
-  async function pdfMenu(pdf) {
+  async function pdfMenu(pdf: PDF) {
     const choice = await api.contextMenu([
       { id: "rename", label: "Rename…" },
       { id: "trash", label: "Move to Trash" },
@@ -150,7 +158,7 @@
     }
   }
 
-  async function folderMenu(target) {
+  async function folderMenu(target: Folder) {
     const choice = await api.contextMenu([{ id: "import", label: "Import PDF…" }]);
     if (choice === "import") {
       folderPath = target.path;
@@ -158,20 +166,32 @@
     }
   }
 
-  function toggleFolder(target) {
+  function toggleFolder(target: Folder) {
     folderPath = target.path;
     if (expanded.has(target.path)) expanded.delete(target.path);
     else expanded.add(target.path);
   }
 </script>
 
-{#snippet iconButton(name, title, onclick, disabled = false, pressed = undefined)}
+{#snippet iconButton(
+  name: IconName,
+  title: string,
+  onclick: () => void,
+  disabled = false,
+  pressed: boolean | undefined = undefined,
+)}
   <button class="icon-button" class:active={pressed} {title} aria-label={title} aria-pressed={pressed} {onclick} {disabled}>
     <Icon {name} />
   </button>
 {/snippet}
 
-{#snippet overviewItem(title, subtitle, onclick, oncontextmenu, artwork)}
+{#snippet overviewItem(
+  title: string,
+  subtitle: string,
+  onclick: () => void,
+  oncontextmenu: () => void,
+  artwork: Snippet,
+)}
   <button class="item" {title} aria-label="{title}, {subtitle}" {onclick} {oncontextmenu}>
     <div class="artwork">{@render artwork()}</div>
     <div class="title">{title}</div>

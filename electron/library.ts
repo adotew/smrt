@@ -1,25 +1,74 @@
-const crypto = require("node:crypto");
-const fs = require("node:fs");
-const path = require("node:path");
-const { PDFDocument, degrees } = require("pdf-lib");
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { PDFDocument, degrees } from "pdf-lib";
 
-/** Turns an [x, y, width, height] rect in page fractions with its page: clockwise for 90, anticlockwise for -90. */
-const turnRect = ([x, y, w, h], turn) => (turn === 90 ? [1 - y - h, x, h, w] : [y, 1 - x - w, h, w]);
+/** A rect as fractions of its page. */
+export type Rect = [x: number, y: number, width: number, height: number];
+/** 1-based page numbers throughout. */
+export interface Highlight {
+  id: string;
+  page: number;
+  color: string;
+  rects: Rect[];
+}
+/** `x` and `y` are fractions of the page; `w` and `h` are CSS pixels at scale 1. */
+export interface PageNote {
+  id: string;
+  page: number;
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+  text: string;
+}
+export interface Annotations {
+  highlights: Highlight[];
+  /** Missing in files from before page notes. */
+  pageNotes?: PageNote[];
+}
+/** Notes keyed by 1-based page number. */
+export type Notes = Record<string, string>;
+/** `page` is 0-based; a missing scale means fit to width. */
+export interface Position {
+  page: number;
+  scale?: number;
+}
+export type PageEdit =
+  | { action: "insertBlank" | "duplicate" | "delete"; page: number }
+  | { action: "rotate"; page: number; rotate: 90 | -90 };
+/** Version ids for `restoreVersion`. */
+export interface Versions {
+  before: string;
+  after: string;
+}
+export interface Folder {
+  name: string;
+  path: string;
+  pdfs: { name: string; path: string }[];
+}
+
+/** Turns a rect with its page: clockwise for 90, anticlockwise for -90. */
+const turnRect = ([x, y, w, h]: Rect, turn: 90 | -90): Rect =>
+  turn === 90 ? [1 - y - h, x, h, w] : [y, 1 - x - w, h, w];
 
 /** Folders of PDFs under `libraryPath`, each with optional sidecar files next to it. */
-function createLibrary(libraryPath, { trash, versionsPath }) {
+export function createLibrary(
+  libraryPath: string,
+  { trash, versionsPath }: { trash: (file: string) => Promise<unknown>; versionsPath: string },
+) {
   fs.mkdirSync(libraryPath, { recursive: true });
   const root = fs.realpathSync(libraryPath);
 
-  const byName = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
+  const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 
-  function inLibrary(target) {
+  function inLibrary(target: string) {
     const resolved = path.resolve(target);
     if (!resolved.startsWith(root + path.sep)) throw new Error("That file is outside the library.");
     return resolved;
   }
 
-  function validatedName(name) {
+  function validatedName(name: string) {
     name = name.trim();
     // Windows' reserved characters are refused everywhere so the library stays portable.
     if (!name || name === "." || name === ".." || /[\\/:*?"<>|\0]/.test(name)) {
@@ -28,13 +77,14 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
     return name;
   }
 
-  const notesPath = (pdf) => pdf.replace(/\.pdf$/i, ".notes.json");
-  const positionPath = (pdf) => pdf.replace(/\.pdf$/i, ".position.json");
-  const annotationsPath = (pdf) => pdf.replace(/\.pdf$/i, ".annotations.json");
-  const sidecars = (pdf) => [notesPath(pdf), positionPath(pdf), annotationsPath(pdf)];
+  const notesPath = (pdf: string) => pdf.replace(/\.pdf$/i, ".notes.json");
+  const positionPath = (pdf: string) => pdf.replace(/\.pdf$/i, ".position.json");
+  const annotationsPath = (pdf: string) => pdf.replace(/\.pdf$/i, ".annotations.json");
+  const sidecars = (pdf: string) => [notesPath(pdf), positionPath(pdf), annotationsPath(pdf)];
 
-  function listLibrary() {
-    const entries = (dir) => fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => byName(a.name, b.name));
+  function listLibrary(): Folder[] {
+    const entries = (dir: string) =>
+      fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => byName(a.name, b.name));
     return entries(root)
       .filter((e) => e.isDirectory())
       .map((folder) => {
@@ -49,14 +99,14 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
       });
   }
 
-  function createFolder(name) {
+  function createFolder(name: string) {
     const folder = path.join(root, validatedName(name));
     if (fs.existsSync(folder)) throw new Error("A folder with that name already exists.");
     fs.mkdirSync(folder);
     return folder;
   }
 
-  function importPDF(source, folder) {
+  function importPDF(source: string, folder: string) {
     folder = inLibrary(folder);
     const header = Buffer.alloc(1024);
     const fd = fs.openSync(source, "r");
@@ -71,13 +121,15 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
       // COPYFILE_EXCL refuses to overwrite an existing file.
       fs.copyFileSync(source, destination, fs.constants.COPYFILE_EXCL);
     } catch (error) {
-      if (error.code === "EEXIST") throw new Error(`“${path.basename(source)}” is already in this folder.`);
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+        throw new Error(`“${path.basename(source)}” is already in this folder.`);
+      }
       throw error;
     }
     return destination;
   }
 
-  function renamePDF(pdf, name) {
+  function renamePDF(pdf: string, name: string) {
     pdf = inLibrary(pdf);
     name = name.trim().replace(/\.pdf$/i, "");
     const destination = path.join(path.dirname(pdf), validatedName(name) + ".pdf");
@@ -87,7 +139,7 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
       throw new Error(`“${path.basename(destination)}” already exists.`);
     }
     fs.renameSync(pdf, destination);
-    const moved = [];
+    const moved: [string, string][] = [];
     try {
       for (const [from, to] of sidecars(pdf).map((file, i) => [file, sidecars(destination)[i]])) {
         if (!fs.existsSync(from)) continue;
@@ -103,14 +155,14 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
     return destination;
   }
 
-  async function trashPDF(pdf) {
+  async function trashPDF(pdf: string) {
     pdf = inLibrary(pdf);
     await trash(pdf);
     for (const file of sidecars(pdf)) if (fs.existsSync(file)) await trash(file);
   }
 
   /** Unreadable sidecars throw so the renderer never overwrites them. */
-  function readSidecar(file, what) {
+  function readSidecar<T>(file: string, what: string): T | null {
     if (!fs.existsSync(file)) return null;
     try {
       return JSON.parse(fs.readFileSync(file, "utf8"));
@@ -120,7 +172,7 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
   }
 
   /** Null removes the file. */
-  function writeSidecar(file, value) {
+  function writeSidecar(file: string, value: unknown) {
     if (value == null) {
       fs.rmSync(file, { force: true });
       return;
@@ -129,25 +181,23 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
     fs.renameSync(file + ".tmp", file);
   }
 
-  /** Notes keyed by 1-based page number. */
-  const readNotes = (pdf) => readSidecar(notesPath(inLibrary(pdf)), "notes") ?? {};
+  const readNotes = (pdf: string) => readSidecar<Notes>(notesPath(inLibrary(pdf)), "notes") ?? {};
 
-  function saveNotes(pdf, notes) {
+  function saveNotes(pdf: string, notes: Notes) {
     const kept = Object.fromEntries(Object.entries(notes).filter(([, text]) => text));
     writeSidecar(notesPath(inLibrary(pdf)), Object.keys(kept).length ? kept : null);
   }
 
-  /** Highlights and page notes hold 1-based pages; positions are fractions of the page. Highlight rects are [x, y, width, height]. */
-  const readAnnotations = (pdf) =>
-    readSidecar(annotationsPath(inLibrary(pdf)), "annotations") ?? { highlights: [], pageNotes: [] };
+  const readAnnotations = (pdf: string) =>
+    readSidecar<Annotations>(annotationsPath(inLibrary(pdf)), "annotations") ?? { highlights: [], pageNotes: [] };
 
-  function saveAnnotations(pdf, annotations) {
+  function saveAnnotations(pdf: string, annotations: Annotations) {
     if (!Array.isArray(annotations?.highlights)) throw new Error("Annotations must hold a list of highlights.");
     const empty = !annotations.highlights.length && !annotations.pageNotes?.length;
     writeSidecar(annotationsPath(inLibrary(pdf)), empty ? null : annotations);
   }
 
-  async function readPosition(pdf) {
+  async function readPosition(pdf: string): Promise<Position | null> {
     const value = await fs.promises.readFile(positionPath(inLibrary(pdf)), "utf8").catch(() => null);
     try {
       return value && JSON.parse(value);
@@ -157,12 +207,12 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
   }
 
   // Losing a reading position is harmless, so write failures are ignored.
-  async function savePosition(pdf, position) {
+  async function savePosition(pdf: string, position: Position) {
     await fs.promises.writeFile(positionPath(inLibrary(pdf)), JSON.stringify(position)).catch(() => {});
   }
 
   /** Keeps a copy of a PDF's contents under `versionsPath` for undo and returns its id. */
-  async function keepVersion(bytes) {
+  async function keepVersion(bytes: Uint8Array) {
     await fs.promises.mkdir(versionsPath, { recursive: true });
     const id = crypto.randomUUID() + ".pdf";
     await fs.promises.writeFile(path.join(versionsPath, id), bytes);
@@ -170,7 +220,7 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
   }
 
   /** Puts back a version kept by `editPage`. Notes and annotations are the caller's to restore. */
-  async function restoreVersion(pdf, id) {
+  async function restoreVersion(pdf: string, id: string) {
     pdf = inLibrary(pdf);
     // The id comes from the renderer, so it may only name a file directly inside the versions folder.
     if (!/^[\w-]+\.pdf$/.test(String(id))) throw new Error("That version doesn't exist.");
@@ -182,17 +232,17 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
   /**
    * Inserts a blank page or a copy after the 1-based `page`, deletes it, or rotates it by `rotate` (±90).
    * The original file goes to the Trash, and notes, annotations and the reading position follow their pages.
-   * Returns the ids of the versions before and after, for `restoreVersion`.
    */
-  async function editPage(pdf, { action, page, rotate }) {
+  async function editPage(pdf: string, edit: PageEdit): Promise<Versions> {
     pdf = inLibrary(pdf);
+    const { action, page } = edit;
     // Unreadable sidecars throw here, before anything changes.
     const notes = readNotes(pdf);
     const annotations = readAnnotations(pdf);
     const position = await readPosition(pdf);
 
     const original = await fs.promises.readFile(pdf);
-    let doc;
+    let doc: PDFDocument;
     try {
       doc = await PDFDocument.load(original);
     } catch {
@@ -202,8 +252,8 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
     if (!Number.isInteger(page) || page < 1 || page > count) throw new Error("That page doesn't exist.");
     const index = page - 1;
     /** Where an old page number ends up, or null once deleted. */
-    let moved = (p) => p;
-    let turn = null;
+    let moved = (p: number): number | null => p;
+    let turn: 90 | -90 | null = null;
     if (action === "insertBlank" || action === "duplicate") {
       const source = doc.getPage(index);
       if (action === "duplicate") doc.insertPage(page, (await doc.copyPages(doc, [index]))[0]);
@@ -213,10 +263,10 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
       if (count === 1) throw new Error("A PDF needs at least one page.");
       doc.removePage(index);
       moved = (p) => (p === page ? null : p > page ? p - 1 : p);
-    } else if (action === "rotate" && (rotate === 90 || rotate === -90)) {
+    } else if (action === "rotate" && (edit.rotate === 90 || edit.rotate === -90)) {
       const target = doc.getPage(index);
-      target.setRotation(degrees((target.getRotation().angle + rotate + 360) % 360));
-      turn = rotate;
+      target.setRotation(degrees((target.getRotation().angle + edit.rotate + 360) % 360));
+      turn = edit.rotate;
     } else {
       throw new Error("Unknown page edit.");
     }
@@ -233,24 +283,27 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
     }
     fs.renameSync(temp, pdf);
 
-    const follow = (items = []) =>
+    const follow = <T extends { page: number }>(items: T[] = [], turnItem: (item: T, turn: 90 | -90) => T) =>
       items.flatMap((item) => {
         const to = moved(item.page);
         if (!to) return [];
-        if (!turn || to !== page) return [{ ...item, page: to }];
-        if (item.rects) return [{ ...item, rects: item.rects.map((rect) => turnRect(rect, turn)) }];
-        // shortcut: only the note's anchor corner turns, so a note may shift by its own size; fine for short notes.
-        const [x, y] = turnRect([item.x, item.y, 0, 0], turn);
-        return [{ ...item, x, y }];
+        return [turn && to === page ? turnItem(item, turn) : { ...item, page: to }];
       });
     saveNotes(
       pdf,
-      Object.fromEntries(Object.entries(notes).flatMap(([p, text]) => (moved(Number(p)) ? [[moved(Number(p)), text]] : []))),
+      Object.fromEntries(Object.entries(notes).flatMap(([p, text]) => {
+        const to = moved(Number(p));
+        return to ? [[to, text]] : [];
+      })),
     );
     saveAnnotations(pdf, {
       ...annotations,
-      highlights: follow(annotations.highlights),
-      pageNotes: follow(annotations.pageNotes),
+      highlights: follow(annotations.highlights, (h, t) => ({ ...h, rects: h.rects.map((rect) => turnRect(rect, t)) })),
+      pageNotes: follow(annotations.pageNotes, (note, t) => {
+        // shortcut: only the note's anchor corner turns, so a note may shift by its own size; fine for short notes.
+        const [x, y] = turnRect([note.x, note.y, 0, 0], t);
+        return { ...note, x, y };
+      }),
     });
     // Positions are 0-based; a deleted current page gives way to the one after it.
     if (position?.page != null) {
@@ -267,7 +320,7 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
     importPDF,
     renamePDF,
     trashPDF,
-    readPDF: (pdf) => fs.promises.readFile(inLibrary(pdf)),
+    readPDF: (pdf: string) => fs.promises.readFile(inLibrary(pdf)),
     readNotes,
     saveNotes,
     readAnnotations,
@@ -278,5 +331,3 @@ function createLibrary(libraryPath, { trash, versionsPath }) {
     restoreVersion,
   };
 }
-
-module.exports = { createLibrary };

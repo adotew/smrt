@@ -1,41 +1,73 @@
-<script>
+<script lang="ts">
   import { onDestroy, tick, untrack } from "svelte";
+  import type { PageViewport, PDFDocumentProxy, PDFPageProxy, RenderTask } from "pdfjs-dist";
+  import type { Annotations, Notes, PageEdit, PageNote, Rect, Versions } from "../electron/library.ts";
+  import type { MenuItem } from "../electron/main.ts";
   import EmptyState from "./EmptyState.svelte";
-  import { openPDF, pdfjs } from "./pdf.js";
+  import { openPDF, pdfjs } from "./pdf.ts";
+
+  interface Sheet {
+    pdfPage: PDFPageProxy;
+    element: HTMLElement | null;
+    drawnScale: number;
+    visible: boolean;
+    task: RenderTask | null;
+  }
+  /** An undo step; `key` and `at` merge rapid edits, and `pdf` marks a page edit. */
+  interface Step {
+    notes: Notes;
+    annotations: Annotations;
+    key?: string;
+    at?: number;
+    pdf?: Versions;
+  }
+  type Target<E extends Event, T extends Element = HTMLElement> = E & { currentTarget: T };
 
   const api = window.smrt;
   const NOTES_WIDTH = 280;
   const PAGE_GAP = 12;
   /** A note's default text box size at scale 1. */
-  const NOTE_SIZE = [180, 90];
+  const NOTE_SIZE = [180, 90] as const;
   const COLORS = ["yellow", "orange", "red", "pink", "purple", "blue", "green"];
 
-  let { path, showingNotes, placingNote = $bindable(false), resizing = false, onerror } = $props();
+  let {
+    path,
+    showingNotes,
+    placingNote = $bindable(false),
+    resizing = false,
+    onerror,
+  }: {
+    path: string | null;
+    showingNotes: boolean;
+    placingNote?: boolean;
+    resizing?: boolean;
+    onerror: (error: unknown) => void;
+  } = $props();
 
-  let doc = null;
+  let doc: PDFDocumentProxy | null = null;
   /** Each page's size at scale 1. */
-  let pages = $state.raw([]);
+  let pages: PageViewport[] = $state.raw([]);
   /** Null means the pages are scaled to fit. */
-  let scale = $state(null);
+  let scale: number | null = $state(null);
   /** Null while no notes are loaded, so a file that failed to load is never overwritten. */
-  let notes = $state(null);
+  let notes: Notes | null = $state(null);
   /** Null while not loaded, like notes. */
-  let annotations = $state(null);
+  let annotations: Annotations | null = $state(null);
   /** Where the colour picker shows for the current text selection. */
-  let picker = $state(null);
+  let picker: { x: number; y: number } | null = $state(null);
   /** The page note whose text is being edited; the others are dragged instead. */
-  let editingNote = $state(null);
-  /** Undo and redo stacks of { notes, annotations, key, at, pdf? }; see `record`. */
-  let undoStack = [];
-  let redoStack = [];
+  let editingNote: string | null = $state(null);
+  /** See `record`. */
+  let undoStack: Step[] = [];
+  let redoStack: Step[] = [];
   let containerWidth = $state(0);
   /** Holds still while the sidebar animates, so pages are laid out once at the end instead of every frame. */
   let fitWidth = $state(0);
-  let container;
-  let rows = [];
-  let sheets = [];
+  let container: HTMLElement;
+  let rows: HTMLElement[] = [];
+  let sheets: Sheet[] = [];
   let currentPage = 0;
-  let anchor = null;
+  let anchor: { page: number; offset: number } | null = null;
 
   const withNotes = $derived(showingNotes && notes != null);
   const fit = $derived(
@@ -55,7 +87,7 @@
   const observer = new IntersectionObserver(
     (entries) => {
       for (const entry of entries) {
-        const sheet = sheets[Number(entry.target.dataset.index)];
+        const sheet = sheets[Number((entry.target as HTMLElement).dataset.index)];
         sheet.visible = entry.isIntersecting;
         if (sheet.visible) draw(sheet);
       }
@@ -74,7 +106,7 @@
     };
   });
 
-  async function load(pdf) {
+  async function load(pdf: string) {
     try {
       let opened;
       try {
@@ -99,7 +131,7 @@
     }
   }
 
-  function close(pdf) {
+  function close(pdf: string) {
     savePosition.flush(pdf);
     observer.disconnect();
     for (const sheet of sheets) sheet.task?.cancel();
@@ -118,9 +150,15 @@
   onDestroy(() => observer.disconnect());
 
   // Keep the current page and offset in view while the page size changes.
-  // Passing `effective` subscribes the effects to it; everything else is read untracked.
-  $effect.pre(() => untrack(captureAnchor, effective));
-  $effect(() => untrack(restoreAnchor, effective));
+  // Reading `effective` subscribes the effects to it; everything else is read untracked.
+  $effect.pre(() => {
+    void effective;
+    untrack(captureAnchor);
+  });
+  $effect(() => {
+    void effective;
+    untrack(restoreAnchor);
+  });
 
   function captureAnchor() {
     const row = rows[currentPage];
@@ -129,20 +167,20 @@
 
   function restoreAnchor() {
     const row = anchor && rows[anchor.page];
-    if (!row) return;
+    if (!anchor || !row) return;
     container.scrollTop = row.offsetTop + anchor.offset * row.offsetHeight;
     anchor = null;
     scheduleRedraw();
   }
 
-  let redrawTimer;
+  let redrawTimer: ReturnType<typeof setTimeout> | undefined;
   function scheduleRedraw() {
     clearTimeout(redrawTimer);
     // Pinching fires continuously; the stretched old canvas stands in until it settles.
     redrawTimer = setTimeout(() => sheets.filter((s) => s.visible).forEach(draw), 120);
   }
 
-  async function draw(sheet) {
+  async function draw(sheet: Sheet) {
     const scale = effective;
     if (sheet.drawnScale === scale || !sheet.element) return;
     sheet.drawnScale = scale;
@@ -154,9 +192,9 @@
     canvas.height = Math.floor(viewport.height * ratio);
     sheet.task = sheet.pdfPage.render({
       canvas,
-      canvasContext: canvas.getContext("2d"),
+      canvasContext: canvas.getContext("2d")!,
       viewport,
-      transform: ratio === 1 ? null : [ratio, 0, 0, ratio, 0, 0],
+      transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
     });
     try {
       await sheet.task.promise;
@@ -166,38 +204,38 @@
     }
     const textLayer = document.createElement("div");
     textLayer.className = "textLayer";
-    sheet.element.style.setProperty("--total-scale-factor", scale);
+    sheet.element.style.setProperty("--total-scale-factor", String(scale));
     sheet.element.replaceChildren(canvas, textLayer);
     await new pdfjs.TextLayer({ textContentSource: sheet.pdfPage.streamTextContent(), container: textLayer, viewport })
       .render()
       .catch(() => {});
   }
 
-  function observe(element, index) {
+  function observe(element: HTMLElement, index: number) {
     sheets[index].element = element;
-    element.dataset.index = index;
+    element.dataset.index = String(index);
     observer.observe(element);
     return () => observer.unobserve(element);
   }
 
-  function debounce(fn, ms) {
-    let timer;
-    let pending = null;
-    const debounced = (pdf) => {
-      clearTimeout(timer);
-      pending = pdf;
-      timer = setTimeout(() => debounced.flush(pdf), ms);
-    };
-    debounced.flush = (pdf) => {
+  function debounce(fn: (pdf: string) => void, ms: number) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let pending: string | null = null;
+    const flush = (pdf: string) => {
       clearTimeout(timer);
       if (pending !== pdf) return;
       pending = null;
       fn(pdf);
     };
-    return debounced;
+    const debounced = (pdf: string) => {
+      clearTimeout(timer);
+      pending = pdf;
+      timer = setTimeout(() => flush(pdf), ms);
+    };
+    return Object.assign(debounced, { flush });
   }
 
-  const savePosition = debounce((pdf) => {
+  const savePosition = debounce((pdf: string) => {
     // Losing a reading position is harmless, so failures are ignored.
     api.savePosition(pdf, { page: currentPage, scale: scale ?? undefined }).catch(() => {});
   }, 400);
@@ -208,19 +246,19 @@
     const index = rows.findIndex((row) => row && row.offsetTop + row.offsetHeight > top);
     if (index >= 0 && index !== currentPage) {
       currentPage = index;
-      savePosition(path);
+      if (path) savePosition(path);
     }
   }
 
   // Trackpad pinches arrive as ctrl+wheel events.
-  function onwheel(event) {
+  function onwheel(event: WheelEvent) {
     if (!event.ctrlKey) return;
     event.preventDefault();
     zoom(effective * Math.exp(-event.deltaY * 0.01));
   }
 
-  export function zoom(next) {
-    if (!doc) return;
+  export function zoom(next: number | null) {
+    if (!doc || !path) return;
     scale = next == null ? null : Math.min(8, Math.max(0.1, next));
     savePosition(path);
   }
@@ -231,18 +269,18 @@
   /** The selected text's line boxes on each page, as page fractions. */
   function selectedRects() {
     const selection = getSelection();
-    if (!annotations || !selection.rangeCount || selection.isCollapsed) return [];
+    if (!annotations || !selection?.rangeCount || selection.isCollapsed) return [];
     const range = selection.getRangeAt(0);
     const root = range.commonAncestorContainer;
-    const nodes = [];
+    const nodes: Node[] = [];
     if (root.nodeType === Node.TEXT_NODE) nodes.push(root);
     else {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       while (walker.nextNode()) if (range.intersectsNode(walker.currentNode)) nodes.push(walker.currentNode);
     }
-    const found = [];
+    const found: { page: number; client: DOMRect; rect: Rect }[] = [];
     for (const node of nodes) {
-      const sheet = node.parentElement.closest(".textLayer")?.closest(".sheet");
+      const sheet = node.parentElement?.closest(".textLayer")?.closest<HTMLElement>(".sheet");
       if (!sheet) continue;
       // Measuring each text node skips the layer's own boxes, which span the whole page.
       const part = document.createRange();
@@ -269,12 +307,12 @@
 
   function onpointerup() {
     const first = selectedRects()[0]?.client;
-    picker = first && { x: first.left, y: first.top < 60 ? first.bottom + 8 : first.top - 48 };
+    picker = first ? { x: first.left, y: first.top < 60 ? first.bottom + 8 : first.top - 48 } : null;
   }
 
   // pdf.js splits lines into overlapping spans; joining them stops the overlaps from darkening.
-  function mergeLines(rects) {
-    const lines = [];
+  function mergeLines(rects: Rect[]) {
+    const lines: Rect[] = [];
     for (const [x, y, w, h] of rects.toSorted((a, b) => a[1] - b[1] || a[0] - b[0])) {
       const line = lines.find((l) => Math.abs(l[1] - y) < l[3] / 2 && x <= l[0] + l[2] + 0.01);
       if (!line) {
@@ -288,20 +326,24 @@
       line[2] = right - line[0];
       line[3] = bottom - line[1];
     }
-    return lines.map((line) => line.map((v) => Math.round(v * 1e4) / 1e4));
+    return lines.map((line) => line.map((v) => Math.round(v * 1e4) / 1e4) as Rect);
   }
 
-  const current = () => ({ notes: $state.snapshot(notes), annotations: $state.snapshot(annotations) });
+  // Only called once a PDF has loaded, so the fallbacks never apply.
+  const current = (): Step => ({
+    notes: $state.snapshot(notes) ?? {},
+    annotations: $state.snapshot(annotations) ?? { highlights: [] },
+  });
 
   /**
    * Remembers the notes and annotations before a change. Changes with the same `key` less than
    * a second apart, like typing, merge into one step.
    */
-  function record(key) {
+  function record(key?: string) {
     const top = undoStack.at(-1);
     const at = Date.now();
     redoStack = [];
-    if (key && top?.key === key && at - top.at < 1000) top.at = at;
+    if (key && top?.key === key && at - (top.at ?? 0) < 1000) top.at = at;
     else undoStack.push({ ...current(), key, at });
   }
 
@@ -309,70 +351,75 @@
   export const redo = () => step(redoStack, undoStack, "after");
 
   // A PDF step holds both versions: undo restores `before`, redo restores `after`.
-  async function step(from, to, version) {
-    if (editingPages || !from.length || !annotations) return;
-    const state = from.pop();
+  async function step(from: Step[], to: Step[], version: keyof Versions) {
+    const state = from.at(-1);
+    if (editingPages || !state || !annotations || !path) return;
+    from.pop();
     to.push({ ...current(), pdf: state.pdf });
     notes = state.notes;
     annotations = state.annotations;
     editingNote = null;
-    if (!state.pdf) {
+    const versions = state.pdf;
+    if (!versions) {
       api.saveNotes(path, state.notes).catch(onerror);
       saveAnnotations();
       return;
     }
     await changePDF(async (pdf) => {
-      await api.restoreVersion(pdf, state.pdf[version]);
+      await api.restoreVersion(pdf, versions[version]);
       await Promise.all([api.saveNotes(pdf, state.notes), api.saveAnnotations(pdf, state.annotations)]);
     });
   }
 
-  function highlight(color) {
+  function highlight(color: string) {
+    if (!annotations) return;
     record();
     for (const [page, found] of Map.groupBy(selectedRects(), (f) => f.page)) {
       annotations.highlights.push({ id: crypto.randomUUID(), page, color, rects: mergeLines(found.map((f) => f.rect)) });
     }
-    getSelection().removeAllRanges();
+    getSelection()?.removeAllRanges();
     picker = null;
     saveAnnotations();
   }
 
-  const PAGE_EDITS = {
-    insertBlank: { action: "insertBlank" },
-    duplicate: { action: "duplicate" },
-    rotateLeft: { action: "rotate", rotate: -90 },
-    rotateRight: { action: "rotate", rotate: 90 },
-    delete: { action: "delete" },
+  const PAGE_EDITS: Record<string, (page: number) => PageEdit> = {
+    insertBlank: (page) => ({ action: "insertBlank", page }),
+    duplicate: (page) => ({ action: "duplicate", page }),
+    rotateLeft: (page) => ({ action: "rotate", page, rotate: -90 }),
+    rotateRight: (page) => ({ action: "rotate", page, rotate: 90 }),
+    delete: (page) => ({ action: "delete", page }),
   };
 
   // Highlights ignore the pointer so text stays selectable; right-clicks are hit-tested instead.
-  async function pageMenu(event, page) {
+  async function pageMenu(event: Target<MouseEvent>, page: number) {
     const box = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - box.left) / box.width;
     const y = (event.clientY - box.top) / box.height;
     const hit = annotations?.highlights.findLast(
       (h) => h.page === page && h.rects.some(([rx, ry, rw, rh]) => x >= rx && x <= rx + rw && y >= ry && y <= ry + rh),
     );
-    const separator = { type: "separator" };
+    const separator: MenuItem = { type: "separator" };
+    const removeHighlight: MenuItem[] = hit ? [{ id: "removeHighlight", label: "Remove Highlight" }, separator] : [];
+    const deletePage: MenuItem[] = pages.length > 1 ? [separator, { id: "delete", label: "Delete Page" }] : [];
     const chosen = await api.contextMenu([
-      ...(hit ? [{ id: "removeHighlight", label: "Remove Highlight" }, separator] : []),
+      ...removeHighlight,
       { id: "insertBlank", label: "Insert Blank Page After" },
       { id: "duplicate", label: "Duplicate Page" },
       separator,
       { id: "rotateLeft", label: "Rotate Left" },
       { id: "rotateRight", label: "Rotate Right" },
-      ...(pages.length > 1 ? [separator, { id: "delete", label: "Delete Page" }] : []),
+      ...deletePage,
     ]);
-    if (chosen === "removeHighlight") {
+    if (chosen === "removeHighlight" && annotations && hit) {
       record();
       annotations.highlights = annotations.highlights.filter((h) => h.id !== hit.id);
       saveAnnotations();
-    } else if (PAGE_EDITS[chosen]) {
-      editPage({ ...PAGE_EDITS[chosen], page });
+    } else if (chosen && PAGE_EDITS[chosen]) {
+      editPage(PAGE_EDITS[chosen](page));
     }
   }
 
-  function editPage(edit) {
+  function editPage(edit: PageEdit) {
     const before = current();
     return changePDF(async (pdf) => {
       const versions = await api.editPage(pdf, edit);
@@ -383,9 +430,9 @@
 
   /** Runs `change` on the file, then reloads it. */
   let editingPages = false;
-  async function changePDF(change) {
+  async function changePDF(change: (pdf: string) => Promise<void>) {
     const pdf = path;
-    if (editingPages) return;
+    if (!pdf || editingPages) return;
     editingPages = true;
     try {
       // The library moves the saved position along with the pages, so it must be current first.
@@ -405,8 +452,8 @@
     }
   }
 
-  function placeNote(event, page) {
-    if (!placingNote || event.target.closest(".page-note")) return;
+  function placeNote(event: Target<MouseEvent>, page: number) {
+    if (!placingNote || !annotations || (event.target as Element).closest(".page-note")) return;
     const box = event.currentTarget.getBoundingClientRect();
     const id = crypto.randomUUID();
     record(id);
@@ -422,21 +469,21 @@
     editNoteText(id);
   }
 
-  async function editNoteText(id) {
+  async function editNoteText(id: string) {
     editingNote = id;
     // Wait for the textarea to become editable.
     await tick();
     document.getElementById(id)?.focus();
   }
 
-  function editPageNote(note, text) {
+  function editPageNote(note: PageNote, text: string) {
     record(note.id);
     note.text = text;
     saveAnnotations();
   }
 
   // Sizes are kept at scale 1 so they scale with the page.
-  function resizeNote(note, textarea) {
+  function resizeNote(note: PageNote, textarea: HTMLTextAreaElement) {
     const w = Math.round(textarea.offsetWidth / effective);
     const h = Math.round(textarea.offsetHeight / effective);
     if (w === (note.w ?? NOTE_SIZE[0]) && h === (note.h ?? NOTE_SIZE[1])) return;
@@ -445,14 +492,14 @@
     saveAnnotations();
   }
 
-  function dragNote(event, note) {
-    if (event.target.tagName === "TEXTAREA") return;
+  function dragNote(event: Target<PointerEvent>, note: PageNote) {
+    if (event.target instanceof HTMLTextAreaElement || !event.currentTarget.parentElement) return;
     event.preventDefault();
     const box = event.currentTarget.parentElement.getBoundingClientRect();
     const start = { x: event.clientX, y: event.clientY, noteX: note.x, noteY: note.y };
-    const clamp = (v) => Math.min(1, Math.max(0, v));
+    const clamp = (v: number) => Math.min(1, Math.max(0, v));
     let moved = false;
-    const move = (e) => {
+    const move = (e: PointerEvent) => {
       if (!moved) record();
       moved = true;
       note.x = clamp(start.noteX + (e.clientX - start.x) / box.width);
@@ -468,22 +515,24 @@
   }
 
   // A note left empty is discarded, so a stray click leaves nothing behind.
-  function dropEmptyNote(note) {
+  function dropEmptyNote(note: PageNote) {
     if (editingNote === note.id) editingNote = null;
-    if (note.text) return;
+    if (note.text || !annotations) return;
     // A note placed and left empty never happened, so its step goes too.
     const top = undoStack.at(-1);
     if (top?.key === note.id && !top.annotations.pageNotes?.some((n) => n.id === note.id)) undoStack.pop();
     else record();
-    annotations.pageNotes = annotations.pageNotes.filter((n) => n.id !== note.id);
+    annotations.pageNotes = annotations.pageNotes?.filter((n) => n.id !== note.id);
     saveAnnotations();
   }
 
   function saveAnnotations() {
+    if (!path || !annotations) return;
     api.saveAnnotations(path, $state.snapshot(annotations)).catch(onerror);
   }
 
-  function editNote(page, text) {
+  function editNote(page: number, text: string) {
+    if (!path || !notes) return;
     record(`note ${page}`);
     notes[page] = text;
     api.saveNotes(path, $state.snapshot(notes)).catch(onerror);
@@ -540,7 +589,7 @@
                 style:height="{(note.h ?? NOTE_SIZE[1]) * effective}px"
                 readonly={editingNote !== note.id}
                 onmouseup={(event) => resizeNote(note, event.currentTarget)}
-                oninput={(event) => editPageNote(note, event.target.value)}
+                oninput={(event) => editPageNote(note, event.currentTarget.value)}
                 onblur={() => dropEmptyNote(note)}
               ></textarea>
             </div>
@@ -566,8 +615,8 @@
           <textarea
             placeholder="Add a note…"
             aria-label="Note for page {index + 1}"
-            value={notes[index + 1] ?? ""}
-            oninput={(event) => editNote(index + 1, event.target.value)}
+            value={notes?.[index + 1] ?? ""}
+            oninput={(event) => editNote(index + 1, event.currentTarget.value)}
           ></textarea>
         </label>
       {/if}

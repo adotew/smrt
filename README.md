@@ -1,6 +1,6 @@
 # Smrt
 
-A PDF library and reader with per-page notes, built with Electron, Svelte and pdf.js.
+A PDF library and reader with per-page notes, built with Electron, Svelte, TypeScript and pdf.js.
 It runs on macOS, Windows and Linux.
 
 PDFs live in folders inside the `Library` folder in Smrt's app data directory:
@@ -24,7 +24,7 @@ original folder is left as it was.
 
 ## Run
 
-Requires Node 20 or later.
+Requires Node 24 or later, which runs the TypeScript build scripts and tests directly.
 
 ```sh
 npm install
@@ -38,10 +38,11 @@ npm run dev
 ```
 
 This serves the renderer from Vite at http://localhost:5173 and opens Electron
-against it, so Svelte/CSS edits update the window instantly. Changes to
-`main.js`, `preload.js` or `library.js` still need a restart.
+against it, so Svelte/CSS edits update the window instantly. Changes under
+`electron/` still need a restart.
 
-`npm start` builds the Svelte renderer into `dist/` and launches Electron.
+`npm start` bundles the main and preload processes from `electron/` into `build/`,
+builds the Svelte renderer into `dist/`, and launches Electron.
 
 | Action          | macOS                    | Windows and Linux     |
 | --------------- | ------------------------ | --------------------- |
@@ -70,11 +71,15 @@ open release/Smrt-darwin-arm64/Smrt.app
 
 If macOS blocks the app, right-click it and choose **Open** the first time.
 
-## Test
+## Check and test
 
 ```sh
+npm run check
 npm test
 ```
 
+`check` type-checks the whole app, including the Svelte components. The IPC API in
+`window.smrt` is typed from the handlers in `electron/main.ts`.
+
 Tests cover folder and name validation, PDF importing and renaming, notes, reading
-positions, page edits, and duplicate-file protection in `library.js`.
+positions, page edits, and duplicate-file protection in `electron/library.ts`.

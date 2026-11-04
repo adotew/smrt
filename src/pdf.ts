@@ -7,7 +7,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
 // Font and CMap data are read straight from the installed package.
 const assets = new URL("../node_modules/pdfjs-dist/", location.href).href;
 
-export const openPDF = (data) =>
+export const openPDF = (data: Uint8Array) =>
   pdfjs.getDocument({
     data,
     cMapUrl: assets + "cmaps/",
@@ -17,7 +17,7 @@ export const openPDF = (data) =>
 
 /** Page 1 as a data URL whose longer side is `size` CSS pixels. */
 // shortcut: reads and renders the whole file every time a folder opens; cache covers if large libraries feel slow.
-export async function renderCover(data, size) {
+export async function renderCover(data: Uint8Array, size: number) {
   const doc = await openPDF(data);
   try {
     const page = await doc.getPage(1);
@@ -26,7 +26,7 @@ export async function renderCover(data, size) {
     const canvas = document.createElement("canvas");
     canvas.width = Math.floor(viewport.width);
     canvas.height = Math.floor(viewport.height);
-    await page.render({ canvas, canvasContext: canvas.getContext("2d"), viewport }).promise;
+    await page.render({ canvas, canvasContext: canvas.getContext("2d")!, viewport }).promise;
     return canvas.toDataURL();
   } finally {
     doc.loadingTask.destroy();

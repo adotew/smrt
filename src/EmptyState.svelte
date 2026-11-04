@@ -1,7 +1,17 @@
-<script>
-  import Icon from "./Icon.svelte";
+<script lang="ts">
+  import Icon, { type IconName } from "./Icon.svelte";
 
-  let { icon, title, description = null, action = null } = $props();
+  let {
+    icon,
+    title,
+    description = null,
+    action = null,
+  }: {
+    icon: IconName;
+    title: string;
+    description?: string | null;
+    action?: { label: string; run: () => void } | null;
+  } = $props();
 </script>
 
 <div class="empty">
