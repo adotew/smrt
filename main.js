@@ -3,9 +3,9 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { createLibrary } = require("./library");
 
-// Chromium's default profile, Application Support/MacPDF, is the library folder on case-insensitive volumes.
-app.setPath("userData", path.join(app.getPath("appData"), "MacPDF Electron"));
+const isMac = process.platform === "darwin";
 
+// The library keeps the Swift app's folder name so both apps share it.
 const library = createLibrary(path.join(app.getPath("appData"), "macpdf"), { trash: (file) => shell.trashItem(file) });
 
 async function importPDF(window, folder) {
@@ -19,15 +19,17 @@ async function importPDF(window, folder) {
 async function icon(kind, size) {
   let target = library.root;
   if (kind === "pdf") {
-    target = path.join(app.getPath("temp"), "macpdf-icon.pdf");
+    target = path.join(app.getPath("temp"), "smrt-icon.pdf");
     fs.writeFileSync(target, "");
   }
-  // getFileIcon's "large" size crashes on macOS, so big icons come from QuickLook instead.
-  const image =
-    size > 32
-      ? await nativeImage.createThumbnailFromPath(target, { width: size, height: size })
-      : await app.getFileIcon(target, { size: "normal" });
-  return image.toDataURL();
+  // getFileIcon's "large" size crashes on macOS, so big icons come from the system thumbnailer,
+  // which Linux lacks.
+  if (size > 32) {
+    try {
+      return (await nativeImage.createThumbnailFromPath(target, { width: size, height: size })).toDataURL();
+    } catch {}
+  }
+  return (await app.getFileIcon(target, { size: isMac ? "normal" : "large" })).toDataURL();
 }
 
 async function thumbnail(pdf) {
@@ -53,19 +55,19 @@ function buildMenu(window) {
   const send = (command) => () => window.webContents.send("command", command);
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
-      { role: "appMenu" },
+      ...(isMac ? [{ role: "appMenu" }] : []),
       { role: "fileMenu" },
       { role: "editMenu" },
       {
         label: "View",
         submenu: [
-          { label: "Toggle Sidebar", accelerator: "Ctrl+Cmd+S", click: send("toggleSidebar") },
-          { label: "Toggle Notes", accelerator: "Cmd+Shift+N", click: send("toggleNotes") },
+          { label: "Toggle Sidebar", accelerator: isMac ? "Ctrl+Cmd+S" : "Ctrl+Shift+S", click: send("toggleSidebar") },
+          { label: "Toggle Notes", accelerator: "CmdOrCtrl+Shift+N", click: send("toggleNotes") },
           { type: "separator" },
-          { label: "Actual Size", accelerator: "Cmd+0", click: send("zoomReset") },
-          { label: "Zoom In", accelerator: "Cmd+=", click: send("zoomIn") },
-          { label: "Zoom Out", accelerator: "Cmd+-", click: send("zoomOut") },
-          { label: "Zoom to Fit", accelerator: "Cmd+9", click: send("zoomFit") },
+          { label: "Actual Size", accelerator: "CmdOrCtrl+0", click: send("zoomReset") },
+          { label: "Zoom In", accelerator: "CmdOrCtrl+=", click: send("zoomIn") },
+          { label: "Zoom Out", accelerator: "CmdOrCtrl+-", click: send("zoomOut") },
+          { label: "Zoom to Fit", accelerator: "CmdOrCtrl+9", click: send("zoomFit") },
           { type: "separator" },
           { role: "togglefullscreen" },
           { role: "toggleDevTools" },
@@ -82,8 +84,9 @@ app.whenReady().then(() => {
     height: 800,
     minWidth: 800,
     minHeight: 500,
-    title: "MacPDF",
-    titleBarStyle: "hiddenInset",
+    title: "Smrt",
+    // Elsewhere a hidden title bar would also hide the window controls.
+    ...(isMac && { titleBarStyle: "hiddenInset" }),
     show: false,
     webPreferences: { preload: path.join(__dirname, "preload.js") },
   });

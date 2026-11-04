@@ -5,10 +5,10 @@ const path = require("node:path");
 const test = require("node:test");
 const { createLibrary } = require("./library");
 
-function setup() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "macpdf-"));
+function setup(options) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "smrt-"));
   const trashed = [];
-  const library = createLibrary(path.join(dir, "library"), { trash: async (file) => trashed.push(file) });
+  const library = createLibrary(path.join(dir, "library"), { trash: async (file) => trashed.push(file), ...options });
   const source = path.join(dir, "Paper.pdf");
   fs.writeFileSync(source, "%PDF-1.4\n%%EOF\n");
   return { dir, library, source, trashed };
@@ -19,7 +19,9 @@ test("folders persist and names are validated", () => {
   library.createFolder("  Math ");
   assert.deepEqual(library.listLibrary().map((f) => f.name), ["Math"]);
   assert.throws(() => library.createFolder("Math"), /already exists/);
-  for (const name of ["", "..", "a/b", "a:b"]) assert.throws(() => library.createFolder(name), /without slashes/);
+  for (const name of ["", "..", "a/b", "a:b", "a\\b", "a?b", "a|b"]) {
+    assert.throws(() => library.createFolder(name), /without any of these characters/);
+  }
 });
 
 test("importing refuses invalid PDFs and duplicates", () => {
@@ -60,4 +62,18 @@ test("empty notes remove the file and reading positions round-trip", async () =>
   assert.equal(await library.readPosition(pdf), null);
   await library.savePosition(pdf, { page: 3, scale: 1.5 });
   assert.deepEqual(await library.readPosition(pdf), { page: 3, scale: 1.5 });
+});
+
+test("without xattrs, positions use a sidecar that follows the PDF", async () => {
+  const { library, source, trashed } = setup({ xattrPositions: false });
+  const pdf = library.importPDF(source, library.createFolder("Math"));
+  assert.equal(await library.readPosition(pdf), null);
+  await library.savePosition(pdf, { page: 2 });
+  assert.ok(fs.existsSync(pdf.replace(/\.pdf$/, ".position.json")));
+  assert.deepEqual(library.listLibrary()[0].pdfs.map((p) => p.name), ["Paper.pdf"]);
+
+  const renamed = library.renamePDF(pdf, "Lecture");
+  assert.deepEqual(await library.readPosition(renamed), { page: 2 });
+  await library.trashPDF(renamed);
+  assert.deepEqual(trashed.map((f) => path.basename(f)), ["Lecture.pdf", "Lecture.position.json"]);
 });

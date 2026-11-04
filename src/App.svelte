@@ -5,7 +5,7 @@
   import Icon from "./Icon.svelte";
   import Reader from "./Reader.svelte";
 
-  const api = window.macpdf;
+  const api = window.smrt;
 
   let folders = $state([]);
   let expanded = new SvelteSet();
@@ -164,7 +164,7 @@
   </button>
 {/snippet}
 
-<header id="toolbar" class:windowed={!fullscreen}>
+<header id="toolbar" class:windowed={api.platform === "darwin" && !fullscreen}>
   {#if showingOverview}
     <nav class="breadcrumbs">
       {#if folder}

@@ -10,7 +10,7 @@
   --selection: rgb(0 0 0 / 0.1);
   --page-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
   --note: #fbfbfa;
-  font: 13px -apple-system, BlinkMacSystemFont, sans-serif;
+  font: 13px system-ui, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -369,7 +369,7 @@ main {
   padding: 0;
   background: none;
   color: inherit;
-  font: 13px -apple-system, BlinkMacSystemFont, sans-serif;
+  font: 13px system-ui, sans-serif;
   user-select: text;
 }
 

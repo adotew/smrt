@@ -16,7 +16,8 @@ const channels = [
   "contextMenu",
 ];
 
-contextBridge.exposeInMainWorld("macpdf", {
+contextBridge.exposeInMainWorld("smrt", {
+  platform: process.platform,
   ...Object.fromEntries(channels.map((channel) => [channel, (...args) => ipcRenderer.invoke(channel, ...args)])),
   on: (channel, listener) => ipcRenderer.on(channel, (_event, value) => listener(value)),
 });

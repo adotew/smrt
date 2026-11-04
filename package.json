@@ -1,16 +1,16 @@
 {
-  "name": "macpdf",
-  "productName": "MacPDF",
+  "name": "smrt",
+  "productName": "Smrt",
   "version": "1.0.0",
   "private": true,
-  "description": "A small macOS PDF library and viewer, Electron edition.",
+  "description": "A small PDF library and reader with per-page notes.",
   "main": "main.js",
   "scripts": {
     "start": "vite build && electron .",
     "dev": "node scripts/dev.js",
     "test": "node --test",
     "build": "vite build",
-    "package": "vite build && electron-packager . MacPDF --platform=darwin --arch=arm64 --out=release --overwrite --ignore='^/(src|release|library\\.test\\.js|vite\\.config\\.js|index\\.html)'"
+    "package": "vite build && electron-packager . Smrt --out=release --overwrite --ignore=\"^/(src|scripts|release|library\\.test\\.js|vite\\.config\\.js|index\\.html)\""
   },
   "license": "ISC",
   "type": "commonjs",

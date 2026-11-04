@@ -7,7 +7,7 @@
   pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
   // Font and CMap data are read straight from the installed package.
   const assets = new URL("../node_modules/pdfjs-dist/", location.href).href;
-  const api = window.macpdf;
+  const api = window.smrt;
   const NOTES_WIDTH = 280;
   const PAGE_GAP = 12;
 

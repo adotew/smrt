@@ -5,8 +5,12 @@ const path = require("node:path");
 // Shared with the Swift app so both read the same reading positions.
 const positionAttribute = "dev.macpdf.reading-position";
 
-/** Folders of PDFs under `libraryPath`, mirroring the Swift app's Library. */
-function createLibrary(libraryPath, { trash }) {
+/**
+ * Folders of PDFs under `libraryPath`, mirroring the Swift app's Library.
+ * Reading positions live in an extended attribute on macOS, where the Swift app reads them,
+ * and in a `<name>.position.json` sidecar elsewhere.
+ */
+function createLibrary(libraryPath, { trash, xattrPositions = process.platform === "darwin" }) {
   fs.mkdirSync(libraryPath, { recursive: true });
   const root = fs.realpathSync(libraryPath);
 
@@ -20,13 +24,16 @@ function createLibrary(libraryPath, { trash }) {
 
   function validatedName(name) {
     name = name.trim();
-    if (!name || name === "." || name === ".." || /[/:\0]/.test(name)) {
-      throw new Error("Enter a name without slashes or colons.");
+    // Windows' reserved characters are refused everywhere so the library stays portable.
+    if (!name || name === "." || name === ".." || /[\\/:*?"<>|\0]/.test(name)) {
+      throw new Error('Enter a name without any of these characters: \\ / : * ? " < > |');
     }
     return name;
   }
 
   const notesPath = (pdf) => pdf.replace(/\.pdf$/i, ".notes.json");
+  const positionPath = (pdf) => pdf.replace(/\.pdf$/i, ".position.json");
+  const sidecars = (pdf) => [notesPath(pdf), positionPath(pdf)];
 
   function listLibrary() {
     const entries = (dir) => fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => byName(a.name, b.name));
@@ -82,14 +89,18 @@ function createLibrary(libraryPath, { trash }) {
       throw new Error(`“${path.basename(destination)}” already exists.`);
     }
     fs.renameSync(pdf, destination);
-    if (fs.existsSync(notesPath(pdf))) {
-      try {
-        fs.renameSync(notesPath(pdf), notesPath(destination));
-      } catch (error) {
-        // Keep the PDF and its notes together.
-        fs.renameSync(destination, pdf);
-        throw error;
+    const moved = [];
+    try {
+      for (const [from, to] of sidecars(pdf).map((file, i) => [file, sidecars(destination)[i]])) {
+        if (!fs.existsSync(from)) continue;
+        fs.renameSync(from, to);
+        moved.push([from, to]);
       }
+    } catch (error) {
+      // Keep the PDF and its sidecars together.
+      for (const [from, to] of moved.reverse()) fs.renameSync(to, from);
+      fs.renameSync(destination, pdf);
+      throw error;
     }
     return destination;
   }
@@ -97,7 +108,7 @@ function createLibrary(libraryPath, { trash }) {
   async function trashPDF(pdf) {
     pdf = inLibrary(pdf);
     await trash(pdf);
-    if (fs.existsSync(notesPath(pdf))) await trash(notesPath(pdf));
+    for (const file of sidecars(pdf)) if (fs.existsSync(file)) await trash(file);
   }
 
   /** Notes keyed by 1-based page number. Unreadable notes throw so the renderer never overwrites them. */
@@ -126,7 +137,10 @@ function createLibrary(libraryPath, { trash }) {
     new Promise((resolve) => execFile("/usr/bin/xattr", args, (error, stdout) => resolve(error ? null : stdout)));
 
   async function readPosition(pdf) {
-    const value = await xattr("-p", positionAttribute, inLibrary(pdf));
+    pdf = inLibrary(pdf);
+    const value = xattrPositions
+      ? await xattr("-p", positionAttribute, pdf)
+      : await fs.promises.readFile(positionPath(pdf), "utf8").catch(() => null);
     try {
       return value && JSON.parse(value);
     } catch {
@@ -135,7 +149,12 @@ function createLibrary(libraryPath, { trash }) {
   }
 
   // Losing a reading position is harmless, so write failures are ignored.
-  const savePosition = (pdf, position) => xattr("-w", positionAttribute, JSON.stringify(position), inLibrary(pdf));
+  async function savePosition(pdf, position) {
+    pdf = inLibrary(pdf);
+    const value = JSON.stringify(position);
+    if (xattrPositions) await xattr("-w", positionAttribute, value, pdf);
+    else await fs.promises.writeFile(positionPath(pdf), value).catch(() => {});
+  }
 
   return {
     root,
