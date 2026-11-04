@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { cubicOut } from "svelte/easing";
   import { slide } from "svelte/transition";
   import { SvelteSet } from "svelte/reactivity";
   import type { Snippet } from "svelte";
@@ -35,6 +36,16 @@
   const folder = $derived(folders.find((f) => f.path === folderPath));
   // Leaves room for the traffic lights outside fullscreen.
   const windowed = $derived(api.platform === "darwin" && !fullscreen);
+  /** Slides the list open while the files travel down from the folder, and back up on close. */
+  function reveal(node: Element) {
+    const { css } = slide(node, { duration: 200 });
+    return {
+      duration: 200,
+      easing: cubicOut,
+      css: (t: number, u: number) => `${css?.(t, u)}; transform: translateY(${-u * 12}px); opacity: ${t}`,
+    };
+  }
+
   const baseName = (name: string) => name.replace(/\.pdf$/i, "");
 
   onMount(async () => {
@@ -313,7 +324,7 @@
                     <span class="label">{f.name}</span>
                   </button>
                   {#if open}
-                    <ul role="group">
+                    <ul role="group" transition:reveal>
                       {#each f.pdfs as pdf (pdf.path)}
                         <li role="treeitem" aria-selected={pdfPath === pdf.path}>
                           <button
