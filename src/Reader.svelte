@@ -8,7 +8,7 @@
   const PAGE_GAP = 12;
   /** A note's default text box size at scale 1. */
   const NOTE_SIZE = [180, 90];
-  const COLORS = ["yellow", "green", "blue", "pink"];
+  const COLORS = ["yellow", "orange", "red", "pink", "purple", "blue", "green"];
 
   let { path, showingNotes, placingNote = $bindable(false), resizing = false, onerror } = $props();
 

@@ -455,6 +455,18 @@ main {
   --highlight: #ffe14d;
 }
 
+[data-color="orange"] {
+  --highlight: #ffbe73;
+}
+
+[data-color="red"] {
+  --highlight: #ff8a80;
+}
+
+[data-color="purple"] {
+  --highlight: #c9a7ff;
+}
+
 [data-color="green"] {
   --highlight: #a6e3a1;
 }
