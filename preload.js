@@ -13,6 +13,7 @@ const channels = [
   "saveAnnotations",
   "readPosition",
   "savePosition",
+  "editPage",
   "icon",
   "contextMenu",
 ];

@@ -292,18 +292,61 @@
     saveAnnotations();
   }
 
+  const PAGE_EDITS = {
+    insertBlank: { action: "insertBlank" },
+    duplicate: { action: "duplicate" },
+    rotateLeft: { action: "rotate", rotate: -90 },
+    rotateRight: { action: "rotate", rotate: 90 },
+    delete: { action: "delete" },
+  };
+
   // Highlights ignore the pointer so text stays selectable; right-clicks are hit-tested instead.
-  async function highlightMenu(event, page) {
+  async function pageMenu(event, page) {
     const box = event.currentTarget.getBoundingClientRect();
     const x = (event.clientX - box.left) / box.width;
     const y = (event.clientY - box.top) / box.height;
     const hit = annotations?.highlights.findLast(
       (h) => h.page === page && h.rects.some(([rx, ry, rw, rh]) => x >= rx && x <= rx + rw && y >= ry && y <= ry + rh),
     );
-    if (!hit) return;
-    if ((await api.contextMenu([{ id: "remove", label: "Remove Highlight" }])) !== "remove") return;
-    annotations.highlights = annotations.highlights.filter((h) => h.id !== hit.id);
-    saveAnnotations();
+    const separator = { type: "separator" };
+    const chosen = await api.contextMenu([
+      ...(hit ? [{ id: "removeHighlight", label: "Remove Highlight" }, separator] : []),
+      { id: "insertBlank", label: "Insert Blank Page After" },
+      { id: "duplicate", label: "Duplicate Page" },
+      separator,
+      { id: "rotateLeft", label: "Rotate Left" },
+      { id: "rotateRight", label: "Rotate Right" },
+      ...(pages.length > 1 ? [separator, { id: "delete", label: "Delete Page" }] : []),
+    ]);
+    if (chosen === "removeHighlight") {
+      annotations.highlights = annotations.highlights.filter((h) => h.id !== hit.id);
+      saveAnnotations();
+    } else if (PAGE_EDITS[chosen]) {
+      editPage({ ...PAGE_EDITS[chosen], page });
+    }
+  }
+
+  let editingPages = false;
+  async function editPage(edit) {
+    const pdf = path;
+    if (editingPages) return;
+    editingPages = true;
+    try {
+      // The library moves the saved position along with the pages, so it must be current first.
+      savePosition.flush(pdf);
+      await api.savePosition(pdf, { page: currentPage, scale: scale ?? undefined });
+      await api.editPage(pdf, edit);
+      if (pdf !== path) return;
+      close(pdf);
+      await load(pdf);
+      // Reloading at an unchanged scale doesn't re-run the anchor effect.
+      await tick();
+      restoreAnchor();
+    } catch (error) {
+      onerror(error);
+    } finally {
+      editingPages = false;
+    }
   }
 
   function placeNote(event, page) {
@@ -403,7 +446,7 @@
         data-page={index + 1}
         style:width="{page.width * effective}px"
         style:height="{page.height * effective}px"
-        oncontextmenu={(event) => highlightMenu(event, index + 1)}
+        oncontextmenu={(event) => pageMenu(event, index + 1)}
         onclick={(event) => placeNote(event, index + 1)}
       >
         <div class="render" {@attach (element) => observe(element, index)}></div>

@@ -93,3 +93,61 @@ test("positions use a sidecar that follows the PDF", async () => {
   await library.trashPDF(renamed);
   assert.deepEqual(trashed.map((f) => path.basename(f)), ["Lecture.pdf", "Lecture.position.json"]);
 });
+
+test("page edits keep sidecars on their pages and trash the original", async () => {
+  const { PDFDocument } = require("pdf-lib");
+  const { dir, library, trashed } = setup();
+  const doc = await PDFDocument.create();
+  for (const width of [100, 200, 300]) doc.addPage([width, 400]);
+  const source = path.join(dir, "Three.pdf");
+  fs.writeFileSync(source, await doc.save());
+  const pdf = library.importPDF(source, library.createFolder("Math"));
+  const pages = async () =>
+    (await PDFDocument.load(fs.readFileSync(pdf))).getPages().map((p) => [p.getWidth(), p.getRotation().angle]);
+
+  library.saveNotes(pdf, { 1: "one", 2: "two", 3: "three" });
+  library.saveAnnotations(pdf, {
+    highlights: [{ id: "h", page: 2, color: "yellow", rects: [[0.1, 0.2, 0.3, 0.05]] }],
+    pageNotes: [{ id: "n", page: 3, x: 0.25, y: 0.5, text: "hi" }],
+  });
+  await library.savePosition(pdf, { page: 2, scale: 1.5 });
+
+  await library.editPage(pdf, { action: "duplicate", page: 1 });
+  assert.deepEqual(await pages(), [[100, 0], [100, 0], [200, 0], [300, 0]]);
+  assert.deepEqual(library.readNotes(pdf), { 1: "one", 3: "two", 4: "three" });
+  assert.equal(library.readAnnotations(pdf).highlights[0].page, 3);
+  assert.deepEqual(await library.readPosition(pdf), { page: 3, scale: 1.5 });
+
+  await library.editPage(pdf, { action: "insertBlank", page: 4 });
+  assert.deepEqual(await pages(), [[100, 0], [100, 0], [200, 0], [300, 0], [300, 0]]);
+
+  await library.editPage(pdf, { action: "rotate", page: 3, rotate: 90 });
+  assert.deepEqual((await pages())[2], [200, 90]);
+  assert.deepEqual(library.readAnnotations(pdf).highlights[0].rects, [[0.75, 0.1, 0.05, 0.3]]);
+  await library.editPage(pdf, { action: "rotate", page: 4, rotate: -90 });
+  assert.deepEqual((await pages())[3], [300, 270]);
+  assert.deepEqual(library.readAnnotations(pdf).pageNotes[0], { id: "n", page: 4, x: 0.5, y: 0.75, text: "hi" });
+
+  await library.editPage(pdf, { action: "delete", page: 3 });
+  assert.deepEqual(await pages(), [[100, 0], [100, 0], [300, 270], [300, 0]]);
+  assert.deepEqual(library.readNotes(pdf), { 1: "one", 3: "three" });
+  assert.deepEqual(library.readAnnotations(pdf).highlights, []);
+  assert.deepEqual(await library.readPosition(pdf), { page: 2, scale: 1.5 });
+
+  assert.equal(trashed.length, 5);
+  assert.ok(trashed.every((file) => file === pdf));
+  assert.equal(fs.existsSync(pdf + ".tmp"), false);
+  await assert.rejects(library.editPage(pdf, { action: "delete", page: 9 }), /doesn't exist/);
+  await assert.rejects(library.editPage(pdf, { action: "rotate", page: 1, rotate: 45 }), /Unknown page edit/);
+});
+
+test("the last page can't be deleted", async () => {
+  const { PDFDocument } = require("pdf-lib");
+  const { dir, library } = setup();
+  const doc = await PDFDocument.create();
+  doc.addPage();
+  const source = path.join(dir, "One.pdf");
+  fs.writeFileSync(source, await doc.save());
+  const pdf = library.importPDF(source, library.createFolder("Math"));
+  await assert.rejects(library.editPage(pdf, { action: "delete", page: 1 }), /at least one page/);
+});

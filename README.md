@@ -15,6 +15,9 @@ Each PDF can have sidecar files next to it: `<name>.notes.json` for page notes,
 `<name>.annotations.json` for highlights and text boxes, and `<name>.position.json`
 for the last page and zoom.
 
+Right-click a page to insert a blank page after it, duplicate, rotate or delete it.
+These edits rewrite the PDF itself; the previous version goes to the Trash each time.
+
 On first launch, an existing library from the old macpdf app is copied over; the
 original folder is left as it was.
 
@@ -72,4 +75,4 @@ npm test
 ```
 
 Tests cover folder and name validation, PDF importing and renaming, notes, reading
-positions, and duplicate-file protection in `library.js`.
+positions, page edits, and duplicate-file protection in `library.js`.

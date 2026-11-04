@@ -41,7 +41,9 @@ async function icon(kind, size) {
 function contextMenu(window, items) {
   return new Promise((resolve) => {
     let chosen = null;
-    Menu.buildFromTemplate(items.map(({ id, label }) => ({ label, click: () => (chosen = id) }))).popup({
+    Menu.buildFromTemplate(
+      items.map(({ id, label, type }) => (type ? { type } : { label, click: () => (chosen = id) })),
+    ).popup({
       window,
       callback: () => setImmediate(() => resolve(chosen)),
     });
@@ -91,7 +93,7 @@ app.whenReady().then(() => {
   buildMenu(window);
 
   const handle = (channel, fn) => ipcMain.handle(channel, (_event, ...args) => fn(...args));
-  for (const name of ["listLibrary", "createFolder", "renamePDF", "trashPDF", "readPDF", "readNotes", "saveNotes", "readAnnotations", "saveAnnotations", "readPosition", "savePosition"]) {
+  for (const name of ["listLibrary", "createFolder", "renamePDF", "trashPDF", "readPDF", "readNotes", "saveNotes", "readAnnotations", "saveAnnotations", "readPosition", "savePosition", "editPage"]) {
     handle(name, library[name]);
   }
   handle("importPDF", (folder) => importPDF(window, folder));

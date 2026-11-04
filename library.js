@@ -1,5 +1,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
+const { PDFDocument, degrees } = require("pdf-lib");
+
+/** Turns an [x, y, width, height] rect in page fractions with its page: clockwise for 90, anticlockwise for -90. */
+const turnRect = ([x, y, w, h], turn) => (turn === 90 ? [1 - y - h, x, h, w] : [y, 1 - x - w, h, w]);
 
 /** Folders of PDFs under `libraryPath`, each with optional sidecar files next to it. */
 function createLibrary(libraryPath, { trash }) {
@@ -156,6 +160,81 @@ function createLibrary(libraryPath, { trash }) {
     await fs.promises.writeFile(positionPath(inLibrary(pdf)), JSON.stringify(position)).catch(() => {});
   }
 
+  /**
+   * Inserts a blank page or a copy after the 1-based `page`, deletes it, or rotates it by `rotate` (±90).
+   * The original file goes to the Trash, and notes, annotations and the reading position follow their pages.
+   */
+  async function editPage(pdf, { action, page, rotate }) {
+    pdf = inLibrary(pdf);
+    // Unreadable sidecars throw here, before anything changes.
+    const notes = readNotes(pdf);
+    const annotations = readAnnotations(pdf);
+    const position = await readPosition(pdf);
+
+    let doc;
+    try {
+      doc = await PDFDocument.load(await fs.promises.readFile(pdf));
+    } catch {
+      throw new Error("The pages of this PDF can't be edited because it is encrypted or damaged.");
+    }
+    const count = doc.getPageCount();
+    if (!Number.isInteger(page) || page < 1 || page > count) throw new Error("That page doesn't exist.");
+    const index = page - 1;
+    /** Where an old page number ends up, or null once deleted. */
+    let moved = (p) => p;
+    let turn = null;
+    if (action === "insertBlank" || action === "duplicate") {
+      const source = doc.getPage(index);
+      if (action === "duplicate") doc.insertPage(page, (await doc.copyPages(doc, [index]))[0]);
+      else doc.insertPage(page, [source.getWidth(), source.getHeight()]).setRotation(source.getRotation());
+      moved = (p) => (p > page ? p + 1 : p);
+    } else if (action === "delete") {
+      if (count === 1) throw new Error("A PDF needs at least one page.");
+      doc.removePage(index);
+      moved = (p) => (p === page ? null : p > page ? p - 1 : p);
+    } else if (action === "rotate" && (rotate === 90 || rotate === -90)) {
+      const target = doc.getPage(index);
+      target.setRotation(degrees((target.getRotation().angle + rotate + 360) % 360));
+      turn = rotate;
+    } else {
+      throw new Error("Unknown page edit.");
+    }
+
+    const temp = pdf + ".tmp";
+    await fs.promises.writeFile(temp, await doc.save());
+    try {
+      await trash(pdf);
+    } catch (error) {
+      fs.rmSync(temp, { force: true });
+      throw error;
+    }
+    fs.renameSync(temp, pdf);
+
+    const follow = (items = []) =>
+      items.flatMap((item) => {
+        const to = moved(item.page);
+        if (!to) return [];
+        if (!turn || to !== page) return [{ ...item, page: to }];
+        if (item.rects) return [{ ...item, rects: item.rects.map((rect) => turnRect(rect, turn)) }];
+        // shortcut: only the note's anchor corner turns, so a note may shift by its own size; fine for short notes.
+        const [x, y] = turnRect([item.x, item.y, 0, 0], turn);
+        return [{ ...item, x, y }];
+      });
+    saveNotes(
+      pdf,
+      Object.fromEntries(Object.entries(notes).flatMap(([p, text]) => (moved(Number(p)) ? [[moved(Number(p)), text]] : []))),
+    );
+    saveAnnotations(pdf, {
+      ...annotations,
+      highlights: follow(annotations.highlights),
+      pageNotes: follow(annotations.pageNotes),
+    });
+    // Positions are 0-based; a deleted current page gives way to the one after it.
+    if (position?.page != null) {
+      await savePosition(pdf, { ...position, page: (moved(position.page + 1) ?? Math.min(page, count - 1)) - 1 });
+    }
+  }
+
   return {
     root,
     inLibrary,
@@ -171,6 +250,7 @@ function createLibrary(libraryPath, { trash }) {
     saveAnnotations,
     readPosition,
     savePosition,
+    editPage,
   };
 }
 
