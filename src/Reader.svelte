@@ -131,6 +131,7 @@
   }
 
   function close(pdf: string) {
+    saveTyped.flush(pdf);
     savePosition.flush(pdf);
     observer.disconnect();
     for (const sheet of sheets) sheet.task?.cancel();
@@ -234,6 +235,11 @@
     };
     return Object.assign(debounced, { flush });
   }
+
+  // Saving rewrites every image in the file, so typing is saved once it pauses.
+  const saveTyped = debounce((pdf: string) => {
+    if (annotations) api.saveAnnotations(pdf, $state.snapshot(annotations)).catch(onerror);
+  }, 300);
 
   const savePosition = debounce((pdf: string) => {
     // Losing a reading position is harmless, so failures are ignored.
@@ -354,20 +360,24 @@
   async function step(from: Step[], to: Step[], version: keyof Versions) {
     const state = from.at(-1);
     if (editingPages || !state || !annotations || !path) return;
-    from.pop();
-    to.push({ ...current(), pdf: state.pdf });
-    notes = state.notes;
-    annotations = state.annotations;
-    editingNote = null;
     const versions = state.pdf;
     if (!versions) {
+      from.pop();
+      to.push(current());
+      notes = state.notes;
+      annotations = state.annotations;
+      editingNote = null;
       api.saveNotes(path, state.notes).catch(onerror);
       saveAnnotations();
       return;
     }
+    // Nothing changes until the file is restored; the reload then shows what's on disk.
+    const back = { ...current(), pdf: versions };
     await changePDF(async (pdf) => {
       await api.restoreVersion(pdf, versions[version]);
       await Promise.all([api.saveNotes(pdf, state.notes), api.saveAnnotations(pdf, state.annotations)]);
+      from.pop();
+      to.push(back);
     });
   }
 
@@ -441,6 +451,7 @@
     editingPages = true;
     try {
       // The library moves the saved position along with the pages, so it must be current first.
+      saveTyped.flush(pdf);
       savePosition.flush(pdf);
       await api.savePosition(pdf, { page: currentPage, scale: scale ?? undefined });
       await change(pdf);
@@ -482,9 +493,10 @@
   }
 
   function editPageNote(note: PageNote, text: string) {
+    if (!path) return;
     record(note.id);
     note.text = text;
-    saveAnnotations();
+    saveTyped(path);
   }
 
   // Sizes are kept at scale 1 so they scale with the page.
@@ -572,7 +584,7 @@
     const size = pages[currentPage];
     const sheet = rows[currentPage]?.querySelector(".sheet");
     if (!annotations || !size || !sheet) return;
-    const w = Math.min(width, size.width / 2);
+    const w = Math.min(width, size.width / 2, ((size.height / 2) * width) / height);
     const h = Math.round((w * height) / width);
     const box = sheet.getBoundingClientRect();
     const view = container.getBoundingClientRect();
@@ -619,6 +631,7 @@
 
   // A note left empty is discarded, so a stray click leaves nothing behind.
   function dropEmptyNote(note: PageNote) {
+    if (path) saveTyped.flush(path);
     if (editingNote === note.id) editingNote = null;
     if (note.text || !annotations) return;
     // A note placed and left empty never happened, so its step goes too.
@@ -642,7 +655,7 @@
   }
 </script>
 
-<svelte:window {onkeydown} />
+<svelte:window {onkeydown} onbeforeunload={() => path && saveTyped.flush(path)} />
 
 <div
   id="pages"

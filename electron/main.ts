@@ -18,6 +18,11 @@ const isMac = process.platform === "darwin";
 
 // Dev runs show "Electron" otherwise.
 app.setName("Smrt");
+// A second copy would clear the first one's undo versions below.
+if (!app.requestSingleInstanceLock()) {
+  console.error("Smrt is already running.");
+  process.exit(0);
+}
 
 const libraryPath = path.join(app.getPath("userData"), "Library");
 // One-time copy of the library from the deprecated Swift app; its folder is left untouched.
@@ -130,6 +135,7 @@ app.whenReady().then(() => {
     webPreferences: { preload: path.join(__dirname, "preload.cjs") },
   });
   buildMenu(window);
+  app.on("second-instance", () => window.show());
 
   for (const [channel, fn] of Object.entries(createHandlers(window))) {
     ipcMain.handle(channel, (_event, ...args) => (fn as (...args: unknown[]) => unknown)(...args));
