@@ -26,6 +26,8 @@
   let alertMessage = $state("");
 
   const folder = $derived(folders.find((f) => f.path === folderPath));
+  // Leaves room for the traffic lights outside fullscreen.
+  const windowed = $derived(api.platform === "darwin" && !fullscreen);
   const baseName = (name) => name.replace(/\.pdf$/i, "");
 
   onMount(async () => {
@@ -165,8 +167,8 @@
   </button>
 {/snippet}
 
-<header id="toolbar" class:windowed={api.platform === "darwin" && !fullscreen}>
-  {#if showingOverview}
+{#if showingOverview}
+  <header id="toolbar" class:windowed>
     <nav class="breadcrumbs">
       {#if folder}
         <button class="crumb" onclick={showOverview}>Library</button>
@@ -182,14 +184,8 @@
     {:else}
       {@render iconButton("add", "New Folder", newFolder)}
     {/if}
-  {:else}
-    {@render iconButton("library", "Back to Library", showOverview)}
-    {@render iconButton("newFolder", "New Folder", newFolder)}
-    {@render iconButton("add", "Import PDF", () => importInto(folderPath), !folderPath)}
-    <div class="spacer"></div>
-    {@render iconButton("notes", showingNotes ? "Hide Notes" : "Show Notes", () => (showingNotes = !showingNotes))}
-  {/if}
-</header>
+  </header>
+{/if}
 
 <main>
   {#if showingOverview}
@@ -250,7 +246,15 @@
     </section>
   {:else}
     <section id="reader">
-      <div id="sidebar-toggle">
+      <div id="reader-controls" class:windowed class:floating={!showingSidebar}>
+        {@render iconButton("library", "Back to Library", showOverview)}
+        {@render iconButton("newFolder", "New Folder", newFolder)}
+        {@render iconButton("add", "Import PDF", () => importInto(folderPath), !folderPath)}
+      </div>
+      <div id="notes-toggle" class="floating">
+        {@render iconButton("notes", showingNotes ? "Hide Notes" : "Show Notes", () => (showingNotes = !showingNotes))}
+      </div>
+      <div id="sidebar-toggle" class:floating={!showingSidebar}>
         {@render iconButton("sidebar", showingSidebar ? "Hide Sidebar" : "Show Sidebar", () => (showingSidebar = !showingSidebar))}
       </div>
       {#if showingSidebar}

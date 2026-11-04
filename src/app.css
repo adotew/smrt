@@ -77,7 +77,8 @@ button {
   padding-left: 90px;
 }
 
-#toolbar button {
+#toolbar button,
+#reader-controls button {
   -webkit-app-region: no-drag;
 }
 
@@ -244,6 +245,42 @@ main {
   display: flex;
 }
 
+#reader-controls {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 52px;
+  padding: 0 14px;
+  -webkit-app-region: drag;
+}
+
+#reader-controls.windowed {
+  padding-left: 90px;
+}
+
+/* Same centre line as the sidebar header, so the traffic lights stay inside the pill. */
+#reader-controls.floating {
+  top: 6px;
+  left: 8px;
+  height: 40px;
+  padding: 0 2px;
+}
+
+#reader-controls.floating.windowed {
+  padding-left: 82px;
+}
+
+#notes-toggle {
+  position: absolute;
+  top: 9px;
+  right: 18px;
+  z-index: 1;
+}
+
 #sidebar-toggle {
   position: absolute;
   left: 6px;
@@ -251,11 +288,23 @@ main {
   z-index: 1;
 }
 
+.floating .icon-button {
+  border-radius: 999px;
+}
+
+.floating {
+  border-radius: 999px;
+  background: var(--sidebar);
+  box-shadow:
+    0 0 0 0.5px var(--separator),
+    0 2px 8px rgb(0 0 0 / 0.15);
+}
+
 #sidebar {
   width: 240px;
   flex: none;
   overflow: auto;
-  padding: 4px 10px 44px;
+  padding: 52px 10px 44px;
   background: var(--sidebar);
   border-right: 1px solid var(--separator);
   display: flex;
