@@ -7,7 +7,7 @@
   const NOTES_WIDTH = 280;
   const PAGE_GAP = 12;
 
-  let { path, showingNotes, onerror } = $props();
+  let { path, showingNotes, resizing = false, onerror } = $props();
 
   let doc = null;
   /** Each page's size at scale 1. */
@@ -17,6 +17,8 @@
   /** Null while no notes are loaded, so a file that failed to load is never overwritten. */
   let notes = $state(null);
   let containerWidth = $state(0);
+  /** Holds still while the sidebar animates, so pages are laid out once at the end instead of every frame. */
+  let fitWidth = $state(0);
   let container;
   let rows = [];
   let sheets = [];
@@ -29,10 +31,14 @@
       ? 1
       : Math.max(
           0.1,
-          (containerWidth - (withNotes ? NOTES_WIDTH + PAGE_GAP : 0) - PAGE_GAP * 2) / Math.max(...pages.map((p) => p.width)),
+          (fitWidth - (withNotes ? NOTES_WIDTH + PAGE_GAP : 0) - PAGE_GAP * 2) / Math.max(...pages.map((p) => p.width)),
         ),
   );
   const effective = $derived(scale ?? fit);
+
+  $effect(() => {
+    if (!resizing) fitWidth = containerWidth;
+  });
 
   const observer = new IntersectionObserver(
     (entries) => {

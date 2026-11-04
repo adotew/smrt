@@ -17,6 +17,7 @@
   let showingOverview = $state(true);
   let showingNotes = $state(false);
   let showingSidebar = $state(true);
+  let sidebarAnimating = $state(false);
   let fullscreen = $state(false);
   let icons = $state({});
   let reader = $state();
@@ -260,7 +261,14 @@
         {@render iconButton("sidebar", showingSidebar ? "Hide Sidebar" : "Show Sidebar", () => (showingSidebar = !showingSidebar))}
       </div>
       {#if showingSidebar}
-        <aside id="sidebar" transition:slide={{ axis: "x", duration: 200 }}>
+        <aside
+          id="sidebar"
+          transition:slide={{ axis: "x", duration: 200 }}
+          onintrostart={() => (sidebarAnimating = true)}
+          onoutrostart={() => (sidebarAnimating = true)}
+          onintroend={() => (sidebarAnimating = false)}
+          onoutroend={() => (sidebarAnimating = false)}
+        >
           {#if folders.length === 0}
             <EmptyState icon="newFolder" title="Create a folder" />
           {:else}
@@ -300,7 +308,7 @@
           {/if}
         </aside>
       {/if}
-      <Reader bind:this={reader} path={pdfPath} {showingNotes} onerror={showError} />
+      <Reader bind:this={reader} path={pdfPath} {showingNotes} resizing={sidebarAnimating} onerror={showError} />
     </section>
   {/if}
 </main>
