@@ -6,6 +6,8 @@
   const api = window.smrt;
   const NOTES_WIDTH = 280;
   const PAGE_GAP = 12;
+  /** A note's default text box size at scale 1. */
+  const NOTE_SIZE = [180, 90];
   const COLORS = ["yellow", "green", "blue", "pink"];
 
   let { path, showingNotes, placingNote = $bindable(false), resizing = false, onerror } = $props();
@@ -332,6 +334,15 @@
     saveAnnotations();
   }
 
+  // Sizes are kept at scale 1 so they scale with the page.
+  function resizeNote(note, textarea) {
+    const w = Math.round(textarea.offsetWidth / effective);
+    const h = Math.round(textarea.offsetHeight / effective);
+    if (w === (note.w ?? NOTE_SIZE[0]) && h === (note.h ?? NOTE_SIZE[1])) return;
+    Object.assign(note, { w, h });
+    saveAnnotations();
+  }
+
   function dragNote(event, note) {
     if (event.target.tagName === "TEXTAREA") return;
     event.preventDefault();
@@ -403,8 +414,9 @@
               class="page-note"
               role="group"
               aria-label="Note on page {index + 1}"
-              style:left="min({note.x * 100}%, calc(100% - 192px))"
-              style:top="min({note.y * 100}%, calc(100% - 102px))"
+              style:--note-scale={effective}
+              style:left="min({note.x * 100}%, calc(100% - {((note.w ?? NOTE_SIZE[0]) + 12) * effective}px))"
+              style:top="min({note.y * 100}%, calc(100% - {((note.h ?? NOTE_SIZE[1]) + 12) * effective}px))"
               class:editing={editingNote === note.id}
               onpointerdown={(event) => dragNote(event, note)}
               ondblclick={() => editNoteText(note.id)}
@@ -414,7 +426,10 @@
                 aria-label="Note text"
                 placeholder="Text"
                 value={note.text}
+                style:width="{(note.w ?? NOTE_SIZE[0]) * effective}px"
+                style:height="{(note.h ?? NOTE_SIZE[1]) * effective}px"
                 readonly={editingNote !== note.id}
+                onmouseup={(event) => resizeNote(note, event.currentTarget)}
                 oninput={(event) => editPageNote(note, event.target.value)}
                 onblur={() => dropEmptyNote(note)}
               ></textarea>
