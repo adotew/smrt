@@ -6,6 +6,7 @@
   const api = window.smrt;
   const NOTES_WIDTH = 280;
   const PAGE_GAP = 12;
+  const COLORS = ["yellow", "green", "blue", "pink"];
 
   let { path, showingNotes, resizing = false, onerror } = $props();
 
@@ -16,6 +17,10 @@
   let scale = $state(null);
   /** Null while no notes are loaded, so a file that failed to load is never overwritten. */
   let notes = $state(null);
+  /** Null while not loaded, like notes. */
+  let annotations = $state(null);
+  /** Where the colour picker shows for the current text selection. */
+  let picker = $state(null);
   let containerWidth = $state(0);
   /** Holds still while the sidebar animates, so pages are laid out once at the end instead of every frame. */
   let fitWidth = $state(0);
@@ -77,7 +82,7 @@
       currentPage = Math.min(position?.page ?? 0, pdfPages.length - 1);
       anchor = { page: currentPage, offset: 0 };
       pages = pdfPages.map((page) => page.getViewport({ scale: 1 }));
-      notes = await api.readNotes(pdf);
+      [notes, annotations] = await Promise.all([api.readNotes(pdf), api.readAnnotations(pdf)]);
     } catch (error) {
       onerror(error);
     }
@@ -93,6 +98,8 @@
     rows = [];
     pages = [];
     notes = null;
+    annotations = null;
+    picker = null;
     scale = null;
   }
 
@@ -184,6 +191,7 @@
   }, 400);
 
   function onscroll() {
+    picker = null;
     const top = container.scrollTop + 1;
     const index = rows.findIndex((row) => row && row.offsetTop + row.offsetHeight > top);
     if (index >= 0 && index !== currentPage) {
@@ -208,6 +216,96 @@
   export const zoomIn = () => zoom(effective * 1.25);
   export const zoomOut = () => zoom(effective / 1.25);
 
+  /** The selected text's line boxes on each page, as page fractions. */
+  function selectedRects() {
+    const selection = getSelection();
+    if (!annotations || !selection.rangeCount || selection.isCollapsed) return [];
+    const range = selection.getRangeAt(0);
+    const root = range.commonAncestorContainer;
+    const nodes = [];
+    if (root.nodeType === Node.TEXT_NODE) nodes.push(root);
+    else {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) if (range.intersectsNode(walker.currentNode)) nodes.push(walker.currentNode);
+    }
+    const found = [];
+    for (const node of nodes) {
+      const sheet = node.parentElement.closest(".textLayer")?.closest(".sheet");
+      if (!sheet) continue;
+      // Measuring each text node skips the layer's own boxes, which span the whole page.
+      const part = document.createRange();
+      part.selectNodeContents(node);
+      if (node === range.startContainer) part.setStart(node, range.startOffset);
+      if (node === range.endContainer) part.setEnd(node, range.endOffset);
+      const box = sheet.getBoundingClientRect();
+      for (const rect of part.getClientRects()) {
+        if (!rect.width || !rect.height) continue;
+        found.push({
+          page: Number(sheet.dataset.page),
+          client: rect,
+          rect: [
+            (rect.left - box.left) / box.width,
+            (rect.top - box.top) / box.height,
+            rect.width / box.width,
+            rect.height / box.height,
+          ],
+        });
+      }
+    }
+    return found;
+  }
+
+  function onpointerup() {
+    const first = selectedRects()[0]?.client;
+    picker = first && { x: first.left, y: first.top < 60 ? first.bottom + 8 : first.top - 48 };
+  }
+
+  // pdf.js splits lines into overlapping spans; joining them stops the overlaps from darkening.
+  function mergeLines(rects) {
+    const lines = [];
+    for (const [x, y, w, h] of rects.toSorted((a, b) => a[1] - b[1] || a[0] - b[0])) {
+      const line = lines.find((l) => Math.abs(l[1] - y) < l[3] / 2 && x <= l[0] + l[2] + 0.01);
+      if (!line) {
+        lines.push([x, y, w, h]);
+        continue;
+      }
+      const right = Math.max(line[0] + line[2], x + w);
+      const bottom = Math.max(line[1] + line[3], y + h);
+      line[0] = Math.min(line[0], x);
+      line[1] = Math.min(line[1], y);
+      line[2] = right - line[0];
+      line[3] = bottom - line[1];
+    }
+    return lines.map((line) => line.map((v) => Math.round(v * 1e4) / 1e4));
+  }
+
+  function highlight(color) {
+    for (const [page, found] of Map.groupBy(selectedRects(), (f) => f.page)) {
+      annotations.highlights.push({ id: crypto.randomUUID(), page, color, rects: mergeLines(found.map((f) => f.rect)) });
+    }
+    getSelection().removeAllRanges();
+    picker = null;
+    saveAnnotations();
+  }
+
+  // Highlights ignore the pointer so text stays selectable; right-clicks are hit-tested instead.
+  async function highlightMenu(event, page) {
+    const box = event.currentTarget.getBoundingClientRect();
+    const x = (event.clientX - box.left) / box.width;
+    const y = (event.clientY - box.top) / box.height;
+    const hit = annotations?.highlights.findLast(
+      (h) => h.page === page && h.rects.some(([rx, ry, rw, rh]) => x >= rx && x <= rx + rw && y >= ry && y <= ry + rh),
+    );
+    if (!hit) return;
+    if ((await api.contextMenu([{ id: "remove", label: "Remove Highlight" }])) !== "remove") return;
+    annotations.highlights = annotations.highlights.filter((h) => h.id !== hit.id);
+    saveAnnotations();
+  }
+
+  function saveAnnotations() {
+    api.saveAnnotations(path, $state.snapshot(annotations)).catch(onerror);
+  }
+
   function editNote(page, text) {
     notes[page] = text;
     api.saveNotes(path, $state.snapshot(notes)).catch(onerror);
@@ -216,9 +314,11 @@
 
 <div
   id="pages"
+  role="document"
   bind:this={container}
   bind:clientWidth={containerWidth}
   {onscroll}
+  {onpointerup}
   {@attach (element) => {
     // Svelte registers wheel listeners as passive, which would ignore preventDefault.
     element.addEventListener("wheel", onwheel, { passive: false });
@@ -229,10 +329,29 @@
     <div class="page-row" bind:this={rows[index]}>
       <div
         class="sheet"
+        role="group"
+        aria-label="Page {index + 1}"
+        data-page={index + 1}
         style:width="{page.width * effective}px"
         style:height="{page.height * effective}px"
-        {@attach (element) => observe(element, index)}
-      ></div>
+        oncontextmenu={(event) => highlightMenu(event, index + 1)}
+      >
+        <div class="render" {@attach (element) => observe(element, index)}></div>
+        {#each annotations?.highlights ?? [] as h (h.id)}
+          {#if h.page === index + 1}
+            {#each h.rects as [x, y, width, height], i (i)}
+              <div
+                class="highlight"
+                data-color={h.color}
+                style:left="{x * 100}%"
+                style:top="{y * 100}%"
+                style:width="{width * 100}%"
+                style:height="{height * 100}%"
+              ></div>
+            {/each}
+          {/if}
+        {/each}
+      </div>
       {#if withNotes}
         <label class="note">
           <textarea
@@ -248,3 +367,19 @@
     {#if !path}<EmptyState icon="document" title="Select a PDF" />{/if}
   {/each}
 </div>
+
+{#if picker}
+  <div class="highlight-picker floating" style:left="{picker.x}px" style:top="{picker.y}px">
+    {#each COLORS as color (color)}
+      <!-- Keeping focus where it is stops the click from clearing the selection. -->
+      <button
+        class="swatch"
+        data-color={color}
+        title="Highlight"
+        aria-label="Highlight {color}"
+        onmousedown={(event) => event.preventDefault()}
+        onclick={() => highlight(color)}
+      ></button>
+    {/each}
+  </div>
+{/if}

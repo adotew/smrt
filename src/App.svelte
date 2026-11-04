@@ -157,8 +157,10 @@
   }
 </script>
 
-{#snippet iconButton(name, title, onclick, disabled = false)}
-  <button class="icon-button" {title} aria-label={title} {onclick} {disabled}><Icon {name} /></button>
+{#snippet iconButton(name, title, onclick, disabled = false, pressed = undefined)}
+  <button class="icon-button" class:active={pressed} {title} aria-label={title} aria-pressed={pressed} {onclick} {disabled}>
+    <Icon {name} />
+  </button>
 {/snippet}
 
 {#snippet overviewItem(title, subtitle, onclick, oncontextmenu, artwork)}
@@ -254,9 +256,6 @@
         {@render iconButton("newFolder", "New Folder", newFolder)}
         {@render iconButton("add", "Import PDF", () => importInto(folderPath), !folderPath)}
       </div>
-      <div id="notes-toggle" class="floating">
-        {@render iconButton("notes", showingNotes ? "Hide Notes" : "Show Notes", () => (showingNotes = !showingNotes))}
-      </div>
       <div id="sidebar-toggle" class:floating={!showingSidebar}>
         {@render iconButton("sidebar", showingSidebar ? "Hide Sidebar" : "Show Sidebar", () => (showingSidebar = !showingSidebar))}
       </div>
@@ -308,7 +307,20 @@
           {/if}
         </aside>
       {/if}
-      <Reader bind:this={reader} path={pdfPath} {showingNotes} resizing={sidebarAnimating} onerror={showError} />
+      <div id="document">
+        <Reader
+          bind:this={reader}
+          path={pdfPath}
+          {showingNotes}
+          resizing={sidebarAnimating}
+          onerror={showError}
+        />
+        {#if pdfPath}
+          <div id="bottom-toolbar" class="floating">
+            {@render iconButton("notes", "Notes", () => (showingNotes = !showingNotes), false, showingNotes)}
+          </div>
+        {/if}
+      </div>
     </section>
   {/if}
 </main>
