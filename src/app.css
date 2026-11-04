@@ -431,7 +431,6 @@ main {
   position: relative;
   flex: none;
   overflow: hidden;
-  border-radius: 8px;
   background: #fff;
   box-shadow: var(--page-shadow);
   --scale-round-x: 1px;
