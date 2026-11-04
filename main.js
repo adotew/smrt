@@ -77,7 +77,8 @@ app.whenReady().then(() => {
     minHeight: 500,
     title: "Smrt",
     // Elsewhere a hidden title bar would also hide the window controls.
-    ...(isMac && { titleBarStyle: "hiddenInset" }),
+    // y centres the traffic lights in the 52px toolbar.
+    ...(isMac && { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 18, y: 19 } }),
     show: false,
     webPreferences: { preload: path.join(__dirname, "preload.js") },
   });
