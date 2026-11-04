@@ -82,7 +82,8 @@ button {
 }
 
 #toolbar button,
-#reader-controls button {
+#reader-controls button,
+#notes-toggle button {
   -webkit-app-region: no-drag;
 }
 
@@ -247,6 +248,17 @@ main {
   flex: 1;
   min-width: 0;
   display: flex;
+}
+
+/* Lets the window be dragged by its top edge when no bar is there. */
+#drag-strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 16px;
+  z-index: 1;
+  -webkit-app-region: drag;
 }
 
 #reader-controls {

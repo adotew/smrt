@@ -247,6 +247,7 @@
     </section>
   {:else}
     <section id="reader">
+      <div id="drag-strip"></div>
       <div id="reader-controls" class:windowed class:floating={!showingSidebar}>
         {@render iconButton("library", "Back to Library", showOverview)}
         {@render iconButton("newFolder", "New Folder", newFolder)}
