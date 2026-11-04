@@ -1,0 +1,26 @@
+{
+  "name": "macpdf",
+  "productName": "MacPDF",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A small macOS PDF library and viewer, Electron edition.",
+  "main": "main.js",
+  "scripts": {
+    "start": "vite build && electron .",
+    "test": "node --test",
+    "build": "vite build",
+    "package": "vite build && electron-packager . MacPDF --platform=darwin --arch=arm64 --out=release --overwrite --ignore='^/(src|release|library\\.test\\.js|vite\\.config\\.js|index\\.html)'"
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "electron": "^45.2.2",
+    "svelte": "^5.57.3",
+    "vite": "^8.3.5"
+  },
+  "dependencies": {
+    "pdfjs-dist": "^6.5.438"
+  }
+}

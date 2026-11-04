@@ -1,0 +1,316 @@
+<script>
+  import { onMount } from "svelte";
+  import { SvelteSet } from "svelte/reactivity";
+  import EmptyState from "./EmptyState.svelte";
+  import Icon from "./Icon.svelte";
+  import Reader from "./Reader.svelte";
+
+  const api = window.macpdf;
+
+  let folders = $state([]);
+  let expanded = new SvelteSet();
+  /** Folder shown in the overview and used for imports. */
+  let folderPath = $state(null);
+  let pdfPath = $state(null);
+  let showingOverview = $state(true);
+  let showingNotes = $state(false);
+  let showingSidebar = $state(true);
+  let fullscreen = $state(false);
+  let icons = $state({});
+  let reader = $state();
+
+  let promptDialog;
+  let prompt = $state({ title: "", confirm: "", value: "" });
+  let alertDialog;
+  let alertMessage = $state("");
+
+  const folder = $derived(folders.find((f) => f.path === folderPath));
+  const baseName = (name) => name.replace(/\.pdf$/i, "");
+
+  onMount(async () => {
+    const entries = await Promise.all(
+      [
+        ["folder", 32],
+        ["folder", 256],
+        ["pdf", 32],
+        ["pdf", 256],
+      ].map(async ([kind, size]) => [`${kind}${size}`, await api.icon(kind, size)]),
+    );
+    icons = Object.fromEntries(entries);
+    await perform(reload);
+  });
+
+  api.on("fullscreen", (value) => (fullscreen = value));
+  api.on("command", (command) => {
+    if (showingOverview) return;
+    const commands = {
+      toggleSidebar: () => (showingSidebar = !showingSidebar),
+      toggleNotes: () => (showingNotes = !showingNotes),
+      zoomIn: () => reader?.zoomIn(),
+      zoomOut: () => reader?.zoomOut(),
+      zoomReset: () => reader?.zoom(1),
+      zoomFit: () => reader?.zoom(null),
+    };
+    commands[command]?.();
+  });
+
+  function showError(error) {
+    alertMessage = String(error?.message ?? error).replace(/^Error invoking remote method '\w+': (Error: )?/, "");
+    alertDialog.showModal();
+  }
+
+  async function perform(action) {
+    try {
+      await action();
+    } catch (error) {
+      showError(error);
+    }
+  }
+
+  function ask(title, confirm, value = "") {
+    prompt = { title, confirm, value };
+    promptDialog.returnValue = "";
+    promptDialog.showModal();
+    return new Promise((resolve) =>
+      promptDialog.addEventListener("close", () => resolve(promptDialog.returnValue === "ok" ? prompt.value : null), {
+        once: true,
+      }),
+    );
+  }
+
+  async function reload() {
+    folders = await api.listLibrary();
+  }
+
+  async function newFolder() {
+    const name = await ask("New Folder", "Create");
+    if (name == null) return;
+    await perform(async () => {
+      const created = await api.createFolder(name);
+      expanded.add(created);
+      folderPath = created;
+      await reload();
+    });
+  }
+
+  async function importInto(target) {
+    await perform(async () => {
+      const imported = await api.importPDF(target);
+      if (!imported) return;
+      await reload();
+      openPDF(imported);
+    });
+  }
+
+  function openPDF(path) {
+    const parent = folders.find((f) => f.pdfs.some((p) => p.path === path));
+    folderPath = parent?.path ?? null;
+    if (parent) expanded.add(parent.path);
+    pdfPath = path;
+    showingOverview = false;
+  }
+
+  function showOverview() {
+    pdfPath = null;
+    folderPath = null;
+    showingOverview = true;
+  }
+
+  async function pdfMenu(pdf) {
+    const choice = await api.contextMenu([
+      { id: "rename", label: "Rename…" },
+      { id: "trash", label: "Move to Trash" },
+    ]);
+    if (choice === "rename") {
+      const name = await ask("Rename PDF", "Rename", baseName(pdf.name));
+      if (name == null) return;
+      await perform(async () => {
+        const renamed = await api.renamePDF(pdf.path, name);
+        if (pdfPath === pdf.path) pdfPath = renamed;
+        await reload();
+      });
+    } else if (choice === "trash") {
+      await perform(async () => {
+        await api.trashPDF(pdf.path);
+        if (pdfPath === pdf.path) pdfPath = null;
+        await reload();
+      });
+    }
+  }
+
+  async function folderMenu(target) {
+    const choice = await api.contextMenu([{ id: "import", label: "Import PDF…" }]);
+    if (choice === "import") {
+      folderPath = target.path;
+      await importInto(target.path);
+    }
+  }
+
+  function toggleFolder(target) {
+    folderPath = target.path;
+    if (expanded.has(target.path)) expanded.delete(target.path);
+    else expanded.add(target.path);
+  }
+</script>
+
+{#snippet iconButton(name, title, onclick, disabled = false)}
+  <button class="icon-button" {title} aria-label={title} {onclick} {disabled}><Icon {name} /></button>
+{/snippet}
+
+{#snippet overviewItem(title, subtitle, onclick, oncontextmenu, artwork)}
+  <button class="item" {title} aria-label="{title}, {subtitle}" {onclick} {oncontextmenu}>
+    <div class="artwork">{@render artwork()}</div>
+    <div class="title">{title}</div>
+    <div class="subtitle">{subtitle}</div>
+  </button>
+{/snippet}
+
+<header id="toolbar" class:windowed={!fullscreen}>
+  {#if showingOverview}
+    <nav class="breadcrumbs">
+      {#if folder}
+        <button class="crumb" onclick={showOverview}>Library</button>
+        <Icon name="chevronRight" size={12} />
+        <span>{folder.name}</span>
+      {:else}
+        <span>Library</span>
+      {/if}
+    </nav>
+    <div class="spacer"></div>
+    {#if folder}
+      {@render iconButton("add", "Import PDF", () => importInto(folder.path))}
+    {:else}
+      {@render iconButton("add", "New Folder", newFolder)}
+    {/if}
+  {:else}
+    {@render iconButton("library", "Back to Library", showOverview)}
+    {@render iconButton("newFolder", "New Folder", newFolder)}
+    {@render iconButton("add", "Import PDF", () => importInto(folderPath), !folderPath)}
+    <div class="spacer"></div>
+    {@render iconButton("notes", showingNotes ? "Hide Notes" : "Show Notes", () => (showingNotes = !showingNotes))}
+  {/if}
+</header>
+
+<main>
+  {#if showingOverview}
+    <section id="overview">
+      {#if folder}
+        {#if folder.pdfs.length === 0}
+          <EmptyState
+            icon="document"
+            title="No PDFs yet"
+            description="Import a PDF into this folder to start reading."
+            action={{ label: "Import PDF…", run: () => importInto(folder.path) }}
+          />
+        {:else}
+          <div class="grid">
+            {#each folder.pdfs as pdf (pdf.path)}
+              {#snippet cover()}
+                {#await api.thumbnail(pdf.path)}
+                  <img class="placeholder" src={icons.pdf256} alt="" />
+                {:then url}
+                  <img class={url ? "cover" : "placeholder"} src={url ?? icons.pdf256} alt="" />
+                {/await}
+              {/snippet}
+              {@render overviewItem(
+                baseName(pdf.name),
+                "PDF document",
+                () => openPDF(pdf.path),
+                () => pdfMenu(pdf),
+                cover,
+              )}
+            {/each}
+          </div>
+        {/if}
+      {:else if folders.length === 0}
+        <EmptyState
+          icon="newFolder"
+          title="Create your first folder"
+          description="Organize your PDFs into folders, then choose one to start reading."
+          action={{ label: "New Folder", run: newFolder }}
+        />
+      {:else}
+        <div class="grid">
+          {#each folders as f (f.path)}
+            {#snippet artwork()}
+              <img class="folder-art" src={icons.folder256} alt="" />
+            {/snippet}
+            {@render overviewItem(
+              f.name,
+              `${f.pdfs.length} ${f.pdfs.length === 1 ? "Item" : "Items"}`,
+              () => (folderPath = f.path),
+              () => folderMenu(f),
+              artwork,
+            )}
+          {/each}
+        </div>
+      {/if}
+    </section>
+  {:else}
+    <section id="reader">
+      {#if showingSidebar}
+        <aside id="sidebar">
+          {#if folders.length === 0}
+            <EmptyState icon="newFolder" title="Create a folder" />
+          {:else}
+            <ul role="tree">
+              {#each folders as f (f.path)}
+                {@const open = expanded.has(f.path)}
+                <li role="treeitem" aria-expanded={open} aria-selected={folderPath === f.path && !pdfPath}>
+                  <button
+                    class="row"
+                    class:selected={folderPath === f.path && !pdfPath}
+                    onclick={() => toggleFolder(f)}
+                    oncontextmenu={() => folderMenu(f)}
+                  >
+                    <span class="chevron" class:open><Icon name="chevronRight" size={10} /></span>
+                    <img src={icons.folder32} alt="" />
+                    <span class="label">{f.name}</span>
+                  </button>
+                  {#if open}
+                    <ul role="group">
+                      {#each f.pdfs as pdf (pdf.path)}
+                        <li role="treeitem" aria-selected={pdfPath === pdf.path}>
+                          <button
+                            class="row pdf"
+                            class:selected={pdfPath === pdf.path}
+                            onclick={() => openPDF(pdf.path)}
+                            oncontextmenu={() => pdfMenu(pdf)}
+                          >
+                            <img src={icons.pdf32} alt="" />
+                            <span class="label">{pdf.name}</span>
+                          </button>
+                        </li>
+                      {/each}
+                    </ul>
+                  {/if}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </aside>
+      {/if}
+      <Reader bind:this={reader} path={pdfPath} {showingNotes} onerror={showError} />
+    </section>
+  {/if}
+</main>
+
+<dialog bind:this={promptDialog}>
+  <form method="dialog">
+    <h2>{prompt.title}</h2>
+    <!-- svelte-ignore a11y_autofocus -->
+    <input required autofocus bind:value={prompt.value} />
+    <div class="buttons">
+      <button value="ok" class="primary">{prompt.confirm}</button>
+      <button value="cancel" formnovalidate>Cancel</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog bind:this={alertDialog}>
+  <form method="dialog">
+    <h2>Something went wrong</h2>
+    <p>{alertMessage}</p>
+    <div class="buttons"><button class="primary">OK</button></div>
+  </form>
+</dialog>
