@@ -20,7 +20,8 @@ These edits rewrite the PDF itself; the previous version goes to the Trash each 
 Undo covers page edits, highlights, notes and text boxes until you open another PDF or quit.
 
 Right-click a folder and choose **New Markdown File…** to write notes of your own. They are
-plain `.md` files, saved as you type; images are embedded in them as data URLs.
+plain `.md` files, saved as you type; images are embedded in them as data URLs. Type `/` to
+add headings, lists, checklists, quotes, code, dividers or images, and select text to format it.
 
 On first launch, an existing library from the old macpdf app is copied over; the
 original folder is left as it was.

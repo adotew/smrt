@@ -28,11 +28,14 @@
   },
   "dependencies": {
     "@tiptap/core": "^3.32.2",
+    "@tiptap/extension-bubble-menu": "^3.32.2",
     "@tiptap/extension-image": "^3.32.2",
     "@tiptap/extension-list": "^3.32.2",
+    "@tiptap/extensions": "^3.32.2",
     "@tiptap/markdown": "^3.32.2",
     "@tiptap/pm": "^3.32.2",
     "@tiptap/starter-kit": "^3.32.2",
+    "@tiptap/suggestion": "^3.32.2",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.5.438"
   }

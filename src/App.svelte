@@ -272,7 +272,6 @@
             path={markdownPath}
             inset={showingSidebar ? SIDEBAR_INSET : 0}
             onerror={showError}
-            {ask}
           />
         {/key}
       {:else if pdfPath}
