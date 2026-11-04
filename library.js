@@ -33,7 +33,8 @@ function createLibrary(libraryPath, { trash, xattrPositions = process.platform =
 
   const notesPath = (pdf) => pdf.replace(/\.pdf$/i, ".notes.json");
   const positionPath = (pdf) => pdf.replace(/\.pdf$/i, ".position.json");
-  const sidecars = (pdf) => [notesPath(pdf), positionPath(pdf)];
+  const annotationsPath = (pdf) => pdf.replace(/\.pdf$/i, ".annotations.json");
+  const sidecars = (pdf) => [notesPath(pdf), positionPath(pdf), annotationsPath(pdf)];
 
   function listLibrary() {
     const entries = (dir) => fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => byName(a.name, b.name));
@@ -111,26 +112,40 @@ function createLibrary(libraryPath, { trash, xattrPositions = process.platform =
     for (const file of sidecars(pdf)) if (fs.existsSync(file)) await trash(file);
   }
 
-  /** Notes keyed by 1-based page number. Unreadable notes throw so the renderer never overwrites them. */
-  function readNotes(pdf) {
-    const file = notesPath(inLibrary(pdf));
-    if (!fs.existsSync(file)) return {};
+  /** Unreadable sidecars throw so the renderer never overwrites them. */
+  function readSidecar(file, what) {
+    if (!fs.existsSync(file)) return null;
     try {
       return JSON.parse(fs.readFileSync(file, "utf8"));
     } catch {
-      throw new Error(`The notes in “${path.basename(file)}” could not be read.`);
+      throw new Error(`The ${what} in “${path.basename(file)}” could not be read.`);
     }
   }
 
-  function saveNotes(pdf, notes) {
-    const file = notesPath(inLibrary(pdf));
-    const kept = Object.fromEntries(Object.entries(notes).filter(([, text]) => text));
-    if (Object.keys(kept).length === 0) {
+  /** Null removes the file. */
+  function writeSidecar(file, value) {
+    if (value == null) {
       fs.rmSync(file, { force: true });
       return;
     }
-    fs.writeFileSync(file + ".tmp", JSON.stringify(kept, null, 2));
+    fs.writeFileSync(file + ".tmp", JSON.stringify(value, null, 2));
     fs.renameSync(file + ".tmp", file);
+  }
+
+  /** Notes keyed by 1-based page number. */
+  const readNotes = (pdf) => readSidecar(notesPath(inLibrary(pdf)), "notes") ?? {};
+
+  function saveNotes(pdf, notes) {
+    const kept = Object.fromEntries(Object.entries(notes).filter(([, text]) => text));
+    writeSidecar(notesPath(inLibrary(pdf)), Object.keys(kept).length ? kept : null);
+  }
+
+  /** Highlights hold 1-based pages and [x, y, width, height] rects as fractions of the page. */
+  const readAnnotations = (pdf) => readSidecar(annotationsPath(inLibrary(pdf)), "annotations") ?? { highlights: [] };
+
+  function saveAnnotations(pdf, annotations) {
+    if (!Array.isArray(annotations?.highlights)) throw new Error("Annotations must hold a list of highlights.");
+    writeSidecar(annotationsPath(inLibrary(pdf)), annotations.highlights.length ? annotations : null);
   }
 
   const xattr = (...args) =>
@@ -167,6 +182,8 @@ function createLibrary(libraryPath, { trash, xattrPositions = process.platform =
     readPDF: (pdf) => fs.promises.readFile(inLibrary(pdf)),
     readNotes,
     saveNotes,
+    readAnnotations,
+    saveAnnotations,
     readPosition,
     savePosition,
   };

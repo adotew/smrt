@@ -9,6 +9,8 @@ const channels = [
   "readPDF",
   "readNotes",
   "saveNotes",
+  "readAnnotations",
+  "saveAnnotations",
   "readPosition",
   "savePosition",
   "icon",

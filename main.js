@@ -85,7 +85,7 @@ app.whenReady().then(() => {
   buildMenu(window);
 
   const handle = (channel, fn) => ipcMain.handle(channel, (_event, ...args) => fn(...args));
-  for (const name of ["listLibrary", "createFolder", "renamePDF", "trashPDF", "readPDF", "readNotes", "saveNotes", "readPosition", "savePosition"]) {
+  for (const name of ["listLibrary", "createFolder", "renamePDF", "trashPDF", "readPDF", "readNotes", "saveNotes", "readAnnotations", "saveAnnotations", "readPosition", "savePosition"]) {
     handle(name, library[name]);
   }
   handle("importPDF", (folder) => importPDF(window, folder));

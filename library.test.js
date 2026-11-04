@@ -64,6 +64,19 @@ test("empty notes remove the file and reading positions round-trip", async () =>
   assert.deepEqual(await library.readPosition(pdf), { page: 3, scale: 1.5 });
 });
 
+test("annotations round-trip, follow renames and vanish when empty", () => {
+  const { library, source } = setup();
+  const pdf = library.importPDF(source, library.createFolder("Math"));
+  assert.deepEqual(library.readAnnotations(pdf), { highlights: [] });
+  const annotations = { highlights: [{ id: "a", page: 1, color: "yellow", rects: [[0.1, 0.2, 0.3, 0.02]] }] };
+  library.saveAnnotations(pdf, annotations);
+  const renamed = library.renamePDF(pdf, "Lecture");
+  assert.deepEqual(library.readAnnotations(renamed), annotations);
+  assert.throws(() => library.saveAnnotations(renamed, {}), /list of highlights/);
+  library.saveAnnotations(renamed, { highlights: [] });
+  assert.equal(fs.existsSync(renamed.replace(/\.pdf$/, ".annotations.json")), false);
+});
+
 test("without xattrs, positions use a sidecar that follows the PDF", async () => {
   const { library, source, trashed } = setup({ xattrPositions: false });
   const pdf = library.importPDF(source, library.createFolder("Math"));
