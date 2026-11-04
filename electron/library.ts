@@ -22,10 +22,22 @@ export interface PageNote {
   h?: number;
   text: string;
 }
+/** Placed like a page note; `src` is a data URL so the image travels with the annotations file. */
+export interface PageImage {
+  id: string;
+  page: number;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  src: string;
+}
 export interface Annotations {
   highlights: Highlight[];
   /** Missing in files from before page notes. */
   pageNotes?: PageNote[];
+  /** Missing in files from before page images. */
+  pageImages?: PageImage[];
 }
 /** Notes keyed by 1-based page number. */
 export type Notes = Record<string, string>;
@@ -193,7 +205,7 @@ export function createLibrary(
 
   function saveAnnotations(pdf: string, annotations: Annotations) {
     if (!Array.isArray(annotations?.highlights)) throw new Error("Annotations must hold a list of highlights.");
-    const empty = !annotations.highlights.length && !annotations.pageNotes?.length;
+    const empty = !annotations.highlights.length && !annotations.pageNotes?.length && !annotations.pageImages?.length;
     writeSidecar(annotationsPath(inLibrary(pdf)), empty ? null : annotations);
   }
 
@@ -299,10 +311,14 @@ export function createLibrary(
     saveAnnotations(pdf, {
       ...annotations,
       highlights: follow(annotations.highlights, (h, t) => ({ ...h, rects: h.rects.map((rect) => turnRect(rect, t)) })),
+      // shortcut: only the anchor corner turns, so a note or image may shift by its own size; fine for small ones.
       pageNotes: follow(annotations.pageNotes, (note, t) => {
-        // shortcut: only the note's anchor corner turns, so a note may shift by its own size; fine for short notes.
         const [x, y] = turnRect([note.x, note.y, 0, 0], t);
         return { ...note, x, y };
+      }),
+      pageImages: follow(annotations.pageImages, (image, t) => {
+        const [x, y] = turnRect([image.x, image.y, 0, 0], t);
+        return { ...image, x, y };
       }),
     });
     // Positions are 0-based; a deleted current page gives way to the one after it.

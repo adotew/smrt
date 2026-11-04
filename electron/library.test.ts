@@ -113,6 +113,7 @@ test("page edits keep sidecars on their pages and trash the original", async () 
   library.saveAnnotations(pdf, {
     highlights: [{ id: "h", page: 2, color: "yellow", rects: [[0.1, 0.2, 0.3, 0.05]] }],
     pageNotes: [{ id: "n", page: 3, x: 0.25, y: 0.5, text: "hi" }],
+    pageImages: [{ id: "i", page: 3, x: 0.25, y: 0.5, w: 40, h: 20, src: "data:image/png;base64," }],
   });
   await library.savePosition(pdf, { page: 2, scale: 1.5 });
 
@@ -131,6 +132,15 @@ test("page edits keep sidecars on their pages and trash the original", async () 
   await library.editPage(pdf, { action: "rotate", page: 4, rotate: -90 });
   assert.deepEqual((await pages())[3], [300, 270]);
   assert.deepEqual(library.readAnnotations(pdf).pageNotes?.[0], { id: "n", page: 4, x: 0.5, y: 0.75, text: "hi" });
+  assert.deepEqual(library.readAnnotations(pdf).pageImages?.[0], {
+    id: "i",
+    page: 4,
+    x: 0.5,
+    y: 0.75,
+    w: 40,
+    h: 20,
+    src: "data:image/png;base64,",
+  });
 
   await library.editPage(pdf, { action: "delete", page: 3 });
   assert.deepEqual(await pages(), [[100, 0], [100, 0], [300, 270], [300, 0]]);

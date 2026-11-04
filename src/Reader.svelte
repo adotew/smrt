@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy, tick, untrack } from "svelte";
   import type { PageViewport, PDFDocumentProxy, PDFPageProxy, RenderTask } from "pdfjs-dist";
-  import type { Annotations, Notes, PageEdit, PageNote, Rect, Versions } from "../electron/library.ts";
+  import type { Annotations, Notes, PageEdit, PageImage, PageNote, Rect, Versions } from "../electron/library.ts";
   import type { MenuItem } from "../electron/main.ts";
   import EmptyState from "./EmptyState.svelte";
   import { openPDF, pdfjs } from "./pdf.ts";
@@ -28,6 +28,8 @@
   const PAGE_GAP = 12;
   /** A note's default text box size at scale 1. */
   const NOTE_SIZE = [180, 90] as const;
+  /** Longest side an inserted image is scaled down to, to keep the annotations file small. */
+  const MAX_IMAGE = 1600;
   const COLORS = ["yellow", "orange", "red", "pink", "purple", "blue", "green"];
 
   let {
@@ -58,6 +60,8 @@
   let picker: { x: number; y: number } | null = $state(null);
   /** The page note whose text is being edited; the others are dragged instead. */
   let editingNote: string | null = $state(null);
+  /** The image picked by a double-click, which shows its resize handle and can be deleted. */
+  let selectedImage: string | null = $state(null);
   /** See `record`. */
   let undoStack: Step[] = [];
   let redoStack: Step[] = [];
@@ -139,6 +143,7 @@
     annotations = null;
     picker = null;
     editingNote = null;
+    selectedImage = null;
     scale = null;
   }
 
@@ -393,10 +398,13 @@
     const hit = annotations?.highlights.findLast(
       (h) => h.page === page && h.rects.some(([rx, ry, rw, rh]) => x >= rx && x <= rx + rw && y >= ry && y <= ry + rh),
     );
+    const image = (event.target as Element).closest<HTMLElement>(".page-image")?.dataset.id;
     const separator: MenuItem = { type: "separator" };
     const removeHighlight: MenuItem[] = hit ? [{ id: "removeHighlight", label: "Remove Highlight" }, separator] : [];
     const deletePage: MenuItem[] = pages.length > 1 ? [separator, { id: "delete", label: "Delete Page" }] : [];
+    const imageItems: MenuItem[] = image ? [{ id: "removeImage", label: "Remove Image" }, separator] : [];
     const chosen = await api.contextMenu([
+      ...imageItems,
       ...removeHighlight,
       { id: "insertBlank", label: "Insert Blank Page After" },
       { id: "duplicate", label: "Duplicate Page" },
@@ -409,6 +417,8 @@
       record();
       annotations.highlights = annotations.highlights.filter((h) => h.id !== hit.id);
       saveAnnotations();
+    } else if (chosen === "removeImage" && image) {
+      removeImage(image);
     } else if (chosen && PAGE_EDITS[chosen]) {
       editPage(PAGE_EDITS[chosen](page));
     }
@@ -448,7 +458,7 @@
   }
 
   function placeNote(event: Target<MouseEvent>, page: number) {
-    if (!placingNote || !annotations || (event.target as Element).closest(".page-note")) return;
+    if (!placingNote || !annotations || (event.target as Element).closest(".page-note, .page-image")) return;
     const box = event.currentTarget.getBoundingClientRect();
     const id = crypto.randomUUID();
     record(id);
@@ -487,26 +497,124 @@
     saveAnnotations();
   }
 
-  function dragNote(event: Target<PointerEvent>, note: PageNote) {
+  /** Runs `move` until the pointer is released; the whole gesture is one undo step, saved once. */
+  function followPointer(move: (e: PointerEvent) => void) {
+    let moved = false;
+    const onmove = (e: PointerEvent) => {
+      if (!moved) record();
+      moved = true;
+      move(e);
+    };
+    const stop = () => {
+      removeEventListener("pointermove", onmove);
+      removeEventListener("pointerup", stop);
+      if (moved) saveAnnotations();
+    };
+    addEventListener("pointermove", onmove);
+    addEventListener("pointerup", stop);
+  }
+
+  function dragNote(event: Target<PointerEvent>, note: PageNote | PageImage) {
     if (event.target instanceof HTMLTextAreaElement || !event.currentTarget.parentElement) return;
     event.preventDefault();
     const box = event.currentTarget.parentElement.getBoundingClientRect();
     const start = { x: event.clientX, y: event.clientY, noteX: note.x, noteY: note.y };
     const clamp = (v: number) => Math.min(1, Math.max(0, v));
-    let moved = false;
-    const move = (e: PointerEvent) => {
-      if (!moved) record();
-      moved = true;
+    followPointer((e) => {
       note.x = clamp(start.noteX + (e.clientX - start.x) / box.width);
       note.y = clamp(start.noteY + (e.clientY - start.y) / box.height);
-    };
-    const stop = () => {
-      removeEventListener("pointermove", move);
-      removeEventListener("pointerup", stop);
-      if (moved) saveAnnotations();
-    };
-    addEventListener("pointermove", move);
-    addEventListener("pointerup", stop);
+    });
+  }
+
+  // Keeps the image's proportions; sizes are at scale 1, like notes.
+  function resizeImage(event: PointerEvent, image: PageImage) {
+    event.stopPropagation();
+    event.preventDefault();
+    const start = { x: event.clientX, w: image.w, ratio: image.h / image.w };
+    followPointer((e) => {
+      image.w = Math.max(16, Math.round(start.w + (e.clientX - start.x) / effective));
+      image.h = Math.round(image.w * start.ratio);
+    });
+  }
+
+  function removeImage(id: string) {
+    if (!annotations) return;
+    record();
+    annotations.pageImages = annotations.pageImages?.filter((i) => i.id !== id);
+    if (selectedImage === id) selectedImage = null;
+    saveAnnotations();
+  }
+
+  function onpointerdown(event: PointerEvent) {
+    if (!(event.target as Element).closest(".page-image.selected")) selectedImage = null;
+  }
+
+  function onkeydown(event: KeyboardEvent) {
+    if (!selectedImage) return;
+    if (event.key === "Escape") selectedImage = null;
+    else if ((event.key === "Backspace" || event.key === "Delete") && !(event.target as Element).closest("input, textarea")) {
+      event.preventDefault();
+      removeImage(selectedImage);
+    }
+  }
+
+  /** Asks for an image and places it in the middle of the visible part of the current page. */
+  export async function insertImage() {
+    const file = await pickImage();
+    if (!file || !annotations) return;
+    let src: string, width: number, height: number;
+    try {
+      ({ src, width, height } = await shrinkImage(file));
+    } catch {
+      return onerror(new Error("This image could not be opened."));
+    }
+    const page = currentPage + 1;
+    const size = pages[currentPage];
+    const sheet = rows[currentPage]?.querySelector(".sheet");
+    if (!annotations || !size || !sheet) return;
+    const w = Math.min(width, size.width / 2);
+    const h = Math.round((w * height) / width);
+    const box = sheet.getBoundingClientRect();
+    const view = container.getBoundingClientRect();
+    const middle = (view.top + view.height / 2 - box.top) / box.height;
+    record();
+    annotations.pageImages ??= [];
+    annotations.pageImages.push({
+      id: crypto.randomUUID(),
+      page,
+      x: 0.5 - w / size.width / 2,
+      y: Math.min(1, Math.max(0, middle - h / size.height / 2)),
+      w: Math.round(w),
+      h,
+      src,
+    });
+    saveAnnotations();
+  }
+
+  function pickImage() {
+    const input = Object.assign(document.createElement("input"), {
+      type: "file",
+      accept: "image/png, image/jpeg, image/gif, image/webp",
+    });
+    return new Promise<File | null>((resolve) => {
+      input.onchange = () => resolve(input.files?.[0] ?? null);
+      input.oncancel = () => resolve(null);
+      input.click();
+    });
+  }
+
+  // shortcut: images are stored inline as data URLs, copied into each undo step; move them to files beside the PDF if many large images get slow.
+  async function shrinkImage(file: File) {
+    const bitmap = await createImageBitmap(file);
+    const fit = Math.min(1, MAX_IMAGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * fit);
+    canvas.height = Math.round(bitmap.height * fit);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    // JPEGs stay JPEGs to keep them small; everything else may have transparency.
+    const type = file.type === "image/jpeg" ? "image/jpeg" : "image/png";
+    return { src: canvas.toDataURL(type, 0.9), width: canvas.width, height: canvas.height };
   }
 
   // A note left empty is discarded, so a stray click leaves nothing behind.
@@ -534,6 +642,8 @@
   }
 </script>
 
+<svelte:window {onkeydown} />
+
 <div
   id="pages"
   class:placing={placingNote}
@@ -542,6 +652,7 @@
   bind:clientWidth={containerWidth}
   style:padding-left="{inset}px"
   {onscroll}
+  {onpointerdown}
   {onpointerup}
   {@attach (element) => {
     // Svelte registers wheel listeners as passive, which would ignore preventDefault.
@@ -562,6 +673,28 @@
         onclick={(event) => placeNote(event, index + 1)}
       >
         <div class="render" {@attach (element) => observe(element, index)}></div>
+        {#each annotations?.pageImages ?? [] as image (image.id)}
+          {#if image.page === index + 1}
+            <div
+              class="page-image"
+              role="img"
+              aria-label="Image on page {index + 1}"
+              data-id={image.id}
+              class:selected={selectedImage === image.id}
+              style:left="min({image.x * 100}%, calc(100% - {image.w * effective}px))"
+              style:top="min({image.y * 100}%, calc(100% - {image.h * effective}px))"
+              style:width="{image.w * effective}px"
+              style:height="{image.h * effective}px"
+              onpointerdown={(event) => selectedImage === image.id && dragNote(event, image)}
+              ondblclick={() => (selectedImage = image.id)}
+            >
+              <img src={image.src} alt="" draggable="false" />
+              {#if selectedImage === image.id}
+                <div class="resize-handle" role="presentation" onpointerdown={(event) => resizeImage(event, image)}></div>
+              {/if}
+            </div>
+          {/if}
+        {/each}
         {#each annotations?.pageNotes ?? [] as note (note.id)}
           {#if note.page === index + 1}
             <!-- Drag anywhere on the note; double-click to edit its text. -->

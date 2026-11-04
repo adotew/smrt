@@ -357,6 +357,7 @@
           <div id="bottom-toolbar" class="floating" style:--inset="{showingSidebar ? SIDEBAR_INSET : 0}px">
             {@render iconButton("notes", "Notes", () => (showingNotes = !showingNotes), false, showingNotes)}
             {@render iconButton("pageNote", "Add Note to Page", () => (placingNote = !placingNote), false, placingNote)}
+            {@render iconButton("photo", "Add Image to Page", () => reader?.insertImage())}
           </div>
         {/if}
       </div>
