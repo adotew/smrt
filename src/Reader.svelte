@@ -238,9 +238,9 @@
       ></div>
       {#if withNotes}
         <label class="note">
-          <span>Page {index + 1}</span>
           <textarea
             placeholder="Add a note…"
+            aria-label="Note for page {index + 1}"
             value={notes[index + 1] ?? ""}
             oninput={(event) => editNote(index + 1, event.target.value)}
           ></textarea>

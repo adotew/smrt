@@ -342,7 +342,6 @@ main {
   flex: none;
   display: flex;
   flex-direction: column;
-  gap: 8px;
   padding: 14px 16px;
   background: var(--note);
   border-radius: 8px;
@@ -352,14 +351,9 @@ main {
   overflow: hidden;
 }
 
-.note span {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--tertiary);
-}
-
-.note:focus-within span {
-  color: var(--secondary);
+.note:has(textarea:placeholder-shown):not(:focus-within) {
+  background: none;
+  box-shadow: none;
 }
 
 .note textarea::placeholder {
