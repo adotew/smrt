@@ -14,6 +14,16 @@ npm install
 npm start
 ```
 
+For development with hot-reloading:
+
+```sh
+npm run dev
+```
+
+This serves the renderer from Vite at http://localhost:5173 and opens Electron
+against it, so Svelte/CSS edits update the window instantly. Changes to
+`main.js`, `preload.js` or `library.js` still need a restart.
+
 `npm start` builds the Svelte renderer into `dist/` and launches Electron. Use
 **Control + Command + F** to toggle fullscreen, **Control + Command + S** to toggle the sidebar, and **Command + Shift + N**
 to toggle notes. Zoom with a pinch, **Command + =/−**, **Command + 0** (actual size),

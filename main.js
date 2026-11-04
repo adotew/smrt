@@ -102,7 +102,12 @@ app.whenReady().then(() => {
     window.on(event, () => window.webContents.send("fullscreen", value));
   }
   window.once("ready-to-show", () => window.show());
-  window.loadFile("dist/index.html");
+  if (process.env.VITE_DEV_SERVER_URL) {
+    window.loadURL(process.env.VITE_DEV_SERVER_URL);
+    window.webContents.openDevTools({ mode: "detach" });
+  } else {
+    window.loadFile("dist/index.html");
+  }
 });
 
 app.on("window-all-closed", () => app.quit());

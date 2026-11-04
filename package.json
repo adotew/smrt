@@ -7,6 +7,7 @@
   "main": "main.js",
   "scripts": {
     "start": "vite build && electron .",
+    "dev": "node scripts/dev.js",
     "test": "node --test",
     "build": "vite build",
     "package": "vite build && electron-packager . MacPDF --platform=darwin --arch=arm64 --out=release --overwrite --ignore='^/(src|release|library\\.test\\.js|vite\\.config\\.js|index\\.html)'"
