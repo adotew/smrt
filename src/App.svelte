@@ -30,7 +30,6 @@
   onMount(async () => {
     const entries = await Promise.all(
       [
-        ["folder", 32],
         ["folder", 256],
         ["pdf", 32],
         ["pdf", 256],
@@ -264,7 +263,6 @@
                     oncontextmenu={() => folderMenu(f)}
                   >
                     <span class="chevron" class:open><Icon name="chevronRight" size={12} /></span>
-                    <img src={icons.folder32} alt="" />
                     <span class="label">{f.name}</span>
                   </button>
                   {#if open}
