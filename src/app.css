@@ -485,6 +485,30 @@ main {
   transform: scale(1.15);
 }
 
+#pages.placing .sheet {
+  cursor: crosshair;
+}
+
+.page-note {
+  position: absolute;
+  z-index: 1;
+  width: 180px;
+  height: 90px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 2px;
+  resize: none;
+  font: inherit;
+  font-size: 14px;
+  color: #000;
+  background: transparent;
+}
+
+.page-note:focus {
+  resize: both;
+  outline: 1px solid var(--accent, #0a84ff);
+}
+
 .sheet canvas {
   display: block;
   width: 100%;

@@ -67,13 +67,16 @@ test("empty notes remove the file and reading positions round-trip", async () =>
 test("annotations round-trip, follow renames and vanish when empty", () => {
   const { library, source } = setup();
   const pdf = library.importPDF(source, library.createFolder("Math"));
-  assert.deepEqual(library.readAnnotations(pdf), { highlights: [] });
-  const annotations = { highlights: [{ id: "a", page: 1, color: "yellow", rects: [[0.1, 0.2, 0.3, 0.02]] }] };
+  assert.deepEqual(library.readAnnotations(pdf), { highlights: [], pageNotes: [] });
+  const annotations = {
+    highlights: [{ id: "a", page: 1, color: "yellow", rects: [[0.1, 0.2, 0.3, 0.02]] }],
+    pageNotes: [{ id: "b", page: 1, x: 0.5, y: 0.5, text: "hi" }],
+  };
   library.saveAnnotations(pdf, annotations);
   const renamed = library.renamePDF(pdf, "Lecture");
   assert.deepEqual(library.readAnnotations(renamed), annotations);
   assert.throws(() => library.saveAnnotations(renamed, {}), /list of highlights/);
-  library.saveAnnotations(renamed, { highlights: [] });
+  library.saveAnnotations(renamed, { highlights: [], pageNotes: [] });
   assert.equal(fs.existsSync(renamed.replace(/\.pdf$/, ".annotations.json")), false);
 });
 

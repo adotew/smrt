@@ -1,5 +1,5 @@
 <script>
-  import { onDestroy, untrack } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
   import EmptyState from "./EmptyState.svelte";
   import { openPDF, pdfjs } from "./pdf.js";
 
@@ -8,7 +8,7 @@
   const PAGE_GAP = 12;
   const COLORS = ["yellow", "green", "blue", "pink"];
 
-  let { path, showingNotes, resizing = false, onerror } = $props();
+  let { path, showingNotes, placingNote = $bindable(false), resizing = false, onerror } = $props();
 
   let doc = null;
   /** Each page's size at scale 1. */
@@ -302,6 +302,35 @@
     saveAnnotations();
   }
 
+  function placeNote(event, page) {
+    if (!placingNote || event.target.closest(".page-note")) return;
+    const box = event.currentTarget.getBoundingClientRect();
+    const id = crypto.randomUUID();
+    annotations.pageNotes ??= [];
+    annotations.pageNotes.push({
+      id,
+      page,
+      x: (event.clientX - box.left) / box.width,
+      y: (event.clientY - box.top) / box.height,
+      text: "",
+    });
+    placingNote = false;
+    // Wait for the textarea to render.
+    tick().then(() => document.getElementById(id)?.focus());
+  }
+
+  function editPageNote(note, text) {
+    note.text = text;
+    saveAnnotations();
+  }
+
+  // A note left empty is discarded, so a stray click leaves nothing behind.
+  function dropEmptyNote(note) {
+    if (note.text) return;
+    annotations.pageNotes = annotations.pageNotes.filter((n) => n.id !== note.id);
+    saveAnnotations();
+  }
+
   function saveAnnotations() {
     api.saveAnnotations(path, $state.snapshot(annotations)).catch(onerror);
   }
@@ -314,6 +343,7 @@
 
 <div
   id="pages"
+  class:placing={placingNote}
   role="document"
   bind:this={container}
   bind:clientWidth={containerWidth}
@@ -335,8 +365,24 @@
         style:width="{page.width * effective}px"
         style:height="{page.height * effective}px"
         oncontextmenu={(event) => highlightMenu(event, index + 1)}
+        onclick={(event) => placeNote(event, index + 1)}
       >
         <div class="render" {@attach (element) => observe(element, index)}></div>
+        {#each annotations?.pageNotes ?? [] as note (note.id)}
+          {#if note.page === index + 1}
+            <textarea
+              id={note.id}
+              class="page-note"
+              aria-label="Note on page {index + 1}"
+              placeholder="Text"
+              style:left="min({note.x * 100}%, calc(100% - 180px))"
+              style:top="min({note.y * 100}%, calc(100% - 90px))"
+              value={note.text}
+              oninput={(event) => editPageNote(note, event.target.value)}
+              onblur={() => dropEmptyNote(note)}
+            ></textarea>
+          {/if}
+        {/each}
         {#each annotations?.highlights ?? [] as h (h.id)}
           {#if h.page === index + 1}
             {#each h.rects as [x, y, width, height], i (i)}

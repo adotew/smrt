@@ -140,12 +140,14 @@ function createLibrary(libraryPath, { trash, xattrPositions = process.platform =
     writeSidecar(notesPath(inLibrary(pdf)), Object.keys(kept).length ? kept : null);
   }
 
-  /** Highlights hold 1-based pages and [x, y, width, height] rects as fractions of the page. */
-  const readAnnotations = (pdf) => readSidecar(annotationsPath(inLibrary(pdf)), "annotations") ?? { highlights: [] };
+  /** Highlights and page notes hold 1-based pages; positions are fractions of the page. Highlight rects are [x, y, width, height]. */
+  const readAnnotations = (pdf) =>
+    readSidecar(annotationsPath(inLibrary(pdf)), "annotations") ?? { highlights: [], pageNotes: [] };
 
   function saveAnnotations(pdf, annotations) {
     if (!Array.isArray(annotations?.highlights)) throw new Error("Annotations must hold a list of highlights.");
-    writeSidecar(annotationsPath(inLibrary(pdf)), annotations.highlights.length ? annotations : null);
+    const empty = !annotations.highlights.length && !annotations.pageNotes?.length;
+    writeSidecar(annotationsPath(inLibrary(pdf)), empty ? null : annotations);
   }
 
   const xattr = (...args) =>

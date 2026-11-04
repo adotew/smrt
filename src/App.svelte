@@ -16,6 +16,7 @@
   let pdfPath = $state(null);
   let showingOverview = $state(true);
   let showingNotes = $state(false);
+  let placingNote = $state(false);
   let showingSidebar = $state(true);
   let sidebarAnimating = $state(false);
   let fullscreen = $state(false);
@@ -312,12 +313,14 @@
           bind:this={reader}
           path={pdfPath}
           {showingNotes}
+          bind:placingNote
           resizing={sidebarAnimating}
           onerror={showError}
         />
         {#if pdfPath}
           <div id="bottom-toolbar" class="floating">
             {@render iconButton("notes", "Notes", () => (showingNotes = !showingNotes), false, showingNotes)}
+            {@render iconButton("pageNote", "Add Note to Page", () => (placingNote = !placingNote), false, placingNote)}
           </div>
         {/if}
       </div>
