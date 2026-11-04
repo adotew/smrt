@@ -21,6 +21,8 @@
   let annotations = $state(null);
   /** Where the colour picker shows for the current text selection. */
   let picker = $state(null);
+  /** The page note whose text is being edited; the others are dragged instead. */
+  let editingNote = $state(null);
   let containerWidth = $state(0);
   /** Holds still while the sidebar animates, so pages are laid out once at the end instead of every frame. */
   let fitWidth = $state(0);
@@ -315,8 +317,14 @@
       text: "",
     });
     placingNote = false;
-    // Wait for the textarea to render.
-    tick().then(() => document.getElementById(id)?.focus());
+    editNoteText(id);
+  }
+
+  async function editNoteText(id) {
+    editingNote = id;
+    // Wait for the textarea to become editable.
+    await tick();
+    document.getElementById(id)?.focus();
   }
 
   function editPageNote(note, text) {
@@ -324,8 +332,28 @@
     saveAnnotations();
   }
 
+  function dragNote(event, note) {
+    if (event.target.tagName === "TEXTAREA") return;
+    event.preventDefault();
+    const box = event.currentTarget.parentElement.getBoundingClientRect();
+    const start = { x: event.clientX, y: event.clientY, noteX: note.x, noteY: note.y };
+    const clamp = (v) => Math.min(1, Math.max(0, v));
+    const move = (e) => {
+      note.x = clamp(start.noteX + (e.clientX - start.x) / box.width);
+      note.y = clamp(start.noteY + (e.clientY - start.y) / box.height);
+    };
+    const stop = () => {
+      removeEventListener("pointermove", move);
+      removeEventListener("pointerup", stop);
+      saveAnnotations();
+    };
+    addEventListener("pointermove", move);
+    addEventListener("pointerup", stop);
+  }
+
   // A note left empty is discarded, so a stray click leaves nothing behind.
   function dropEmptyNote(note) {
+    if (editingNote === note.id) editingNote = null;
     if (note.text) return;
     annotations.pageNotes = annotations.pageNotes.filter((n) => n.id !== note.id);
     saveAnnotations();
@@ -370,17 +398,27 @@
         <div class="render" {@attach (element) => observe(element, index)}></div>
         {#each annotations?.pageNotes ?? [] as note (note.id)}
           {#if note.page === index + 1}
-            <textarea
-              id={note.id}
+            <!-- Drag anywhere on the note; double-click to edit its text. -->
+            <div
               class="page-note"
+              role="group"
               aria-label="Note on page {index + 1}"
-              placeholder="Text"
-              style:left="min({note.x * 100}%, calc(100% - 180px))"
-              style:top="min({note.y * 100}%, calc(100% - 90px))"
-              value={note.text}
-              oninput={(event) => editPageNote(note, event.target.value)}
-              onblur={() => dropEmptyNote(note)}
-            ></textarea>
+              style:left="min({note.x * 100}%, calc(100% - 192px))"
+              style:top="min({note.y * 100}%, calc(100% - 102px))"
+              class:editing={editingNote === note.id}
+              onpointerdown={(event) => dragNote(event, note)}
+              ondblclick={() => editNoteText(note.id)}
+            >
+              <textarea
+                id={note.id}
+                aria-label="Note text"
+                placeholder="Text"
+                value={note.text}
+                readonly={editingNote !== note.id}
+                oninput={(event) => editPageNote(note, event.target.value)}
+                onblur={() => dropEmptyNote(note)}
+              ></textarea>
+            </div>
           {/if}
         {/each}
         {#each annotations?.highlights ?? [] as h (h.id)}

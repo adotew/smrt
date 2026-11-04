@@ -492,21 +492,39 @@ main {
 .page-note {
   position: absolute;
   z-index: 1;
+  padding: 6px;
+  border-radius: 3px;
+}
+
+.page-note {
+  cursor: move;
+}
+
+.page-note:hover,
+.page-note.editing {
+  outline: 1px solid var(--accent, #0a84ff);
+}
+
+.page-note textarea {
+  display: block;
   width: 180px;
   height: 90px;
   padding: 4px 6px;
   border: 0;
-  border-radius: 2px;
+  outline: 0;
   resize: none;
   font: inherit;
   font-size: 14px;
   color: #000;
   background: transparent;
+  /* Until a double-click, presses fall through to the note so it can be dragged. */
+  pointer-events: none;
 }
 
-.page-note:focus {
+.page-note.editing textarea {
+  pointer-events: auto;
   resize: both;
-  outline: 1px solid var(--accent, #0a84ff);
+  cursor: text;
 }
 
 .sheet canvas {
