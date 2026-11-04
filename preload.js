@@ -12,7 +12,6 @@ const channels = [
   "readPosition",
   "savePosition",
   "icon",
-  "thumbnail",
   "contextMenu",
 ];
 

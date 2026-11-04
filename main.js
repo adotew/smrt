@@ -32,15 +32,6 @@ async function icon(kind, size) {
   return (await app.getFileIcon(target, { size: isMac ? "normal" : "large" })).toDataURL();
 }
 
-async function thumbnail(pdf) {
-  try {
-    const image = await nativeImage.createThumbnailFromPath(library.inLibrary(pdf), { width: 312, height: 312 });
-    return image.toDataURL();
-  } catch {
-    return null;
-  }
-}
-
 function contextMenu(window, items) {
   return new Promise((resolve) => {
     let chosen = null;
@@ -98,7 +89,6 @@ app.whenReady().then(() => {
   }
   handle("importPDF", (folder) => importPDF(window, folder));
   handle("icon", icon);
-  handle("thumbnail", thumbnail);
   handle("contextMenu", (items) => contextMenu(window, items));
 
   for (const [event, value] of [["enter-full-screen", true], ["leave-full-screen", false]]) {

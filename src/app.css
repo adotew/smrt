@@ -216,7 +216,8 @@ main {
 .cover {
   max-width: 156px;
   max-height: 156px;
-  box-shadow: 0 2px 3px rgb(0 0 0 / 0.14);
+  border-radius: 6px;
+  box-shadow: var(--page-shadow);
 }
 
 .item .title {

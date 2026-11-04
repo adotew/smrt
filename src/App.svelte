@@ -3,6 +3,7 @@
   import { SvelteSet } from "svelte/reactivity";
   import EmptyState from "./EmptyState.svelte";
   import Icon from "./Icon.svelte";
+  import { renderCover } from "./pdf.js";
   import Reader from "./Reader.svelte";
 
   const api = window.smrt;
@@ -205,10 +206,12 @@
           <div class="grid">
             {#each folder.pdfs as pdf (pdf.path)}
               {#snippet cover()}
-                {#await api.thumbnail(pdf.path)}
+                {#await api.readPDF(pdf.path).then((data) => renderCover(data, 156))}
                   <img class="placeholder" src={icons.pdf256} alt="" />
                 {:then url}
-                  <img class={url ? "cover" : "placeholder"} src={url ?? icons.pdf256} alt="" />
+                  <img class="cover" src={url} alt="" />
+                {:catch}
+                  <img class="placeholder" src={icons.pdf256} alt="" />
                 {/await}
               {/snippet}
               {@render overviewItem(

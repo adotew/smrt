@@ -1,12 +1,8 @@
 <script>
-  import * as pdfjs from "pdfjs-dist";
-  import workerSrc from "pdfjs-dist/build/pdf.worker.mjs?url";
   import { onDestroy, untrack } from "svelte";
   import EmptyState from "./EmptyState.svelte";
+  import { openPDF, pdfjs } from "./pdf.js";
 
-  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
-  // Font and CMap data are read straight from the installed package.
-  const assets = new URL("../node_modules/pdfjs-dist/", location.href).href;
   const api = window.smrt;
   const NOTES_WIDTH = 280;
   const PAGE_GAP = 12;
@@ -60,12 +56,7 @@
     try {
       let opened;
       try {
-        opened = await pdfjs.getDocument({
-          data: await api.readPDF(pdf),
-          cMapUrl: assets + "cmaps/",
-          standardFontDataUrl: assets + "standard_fonts/",
-          wasmUrl: assets + "wasm/",
-        }).promise;
+        opened = await openPDF(await api.readPDF(pdf));
       } catch {
         throw new Error("This file could not be opened as a PDF.");
       }
