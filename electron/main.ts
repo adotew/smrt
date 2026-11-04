@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain, nativeImage, shell } from "electron";
+import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { createLibrary } from "./library.ts";
@@ -41,19 +41,11 @@ async function importPDF(window: BrowserWindow, folder: string) {
   return canceled || !filePaths[0] ? null : library.importPDF(filePaths[0], folder);
 }
 
-async function icon(kind: "folder" | "pdf", size: number) {
-  let target = library.root;
-  if (kind === "pdf") {
-    target = path.join(app.getPath("temp"), "smrt-icon.pdf");
-    fs.writeFileSync(target, "");
-  }
-  // getFileIcon's "large" size crashes on macOS, so big icons come from the system thumbnailer,
-  // which Linux lacks.
-  if (size > 32) {
-    try {
-      return (await nativeImage.createThumbnailFromPath(target, { width: size, height: size })).toDataURL();
-    } catch {}
-  }
+/** The system's PDF file icon, as a data URL. */
+async function icon() {
+  const target = path.join(app.getPath("temp"), "smrt-icon.pdf");
+  fs.writeFileSync(target, "");
+  // getFileIcon's "large" size crashes on macOS.
   return (await app.getFileIcon(target, { size: isMac ? "normal" : "large" })).toDataURL();
 }
 
@@ -110,7 +102,7 @@ function buildMenu(window: BrowserWindow) {
 
 /** Everything the renderer may invoke; preload.ts exposes these as `window.smrt`. */
 function createHandlers(window: BrowserWindow) {
-  const { root, inLibrary, ...exposed } = library;
+  const { inLibrary, ...exposed } = library;
   return {
     ...exposed,
     importPDF: (folder: string) => importPDF(window, folder),

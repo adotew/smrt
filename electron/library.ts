@@ -329,7 +329,6 @@ export function createLibrary(
   }
 
   return {
-    root,
     inLibrary,
     listLibrary,
     createFolder,
