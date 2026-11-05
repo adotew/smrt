@@ -10,12 +10,14 @@ const staging = fs.mkdtempSync(path.join(os.tmpdir(), "smrt-dmg-"));
 const app = path.join(staging, "Smrt.app");
 try {
   execFileSync("ditto", ["release/Smrt-darwin-arm64/Smrt.app", app]);
-  // The packaged bundle's ad-hoc signature is incomplete, and downloaded apps with a broken one are reported as damaged.
-  execFileSync("codesign", ["--force", "--deep", "--sign", "-", app]);
   fs.symlinkSync("/Applications", path.join(staging, "Applications"));
   execFileSync("hdiutil", ["create", "-volname", "Smrt", "-srcfolder", staging, "-ov", "-format", "ULMO", dmg], {
     stdio: "inherit",
   });
+  // Notarizing the signed image covers the app inside; needs `xcrun notarytool store-credentials smrt` once.
+  execFileSync("codesign", ["--sign", "Developer ID Application", "--timestamp", dmg], { stdio: "inherit" });
+  execFileSync("xcrun", ["notarytool", "submit", dmg, "--keychain-profile", "smrt", "--wait"], { stdio: "inherit" });
+  execFileSync("xcrun", ["stapler", "staple", dmg], { stdio: "inherit" });
 } finally {
   fs.rmSync(staging, { recursive: true, force: true });
 }

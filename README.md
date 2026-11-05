@@ -34,8 +34,7 @@ original folder is left as it was.
 
 On an Apple Silicon Mac, download `Smrt-<version>-arm64.dmg` from the
 [latest release](https://github.com/adotew/smrt/releases/latest), open it and drag Smrt into
-Applications. Smrt isn't notarized yet, so macOS blocks the first launch: open **System Settings →
-Privacy & Security** and choose **Open Anyway**.
+Applications.
 
 Smrt checks for a newer release on launch and offers to open its download page;
 **Smrt → Check for Updates…** checks by hand.
@@ -93,7 +92,13 @@ If macOS blocks the app, right-click it and choose **Open** the first time.
 npm run dmg
 ```
 
-This packages the Apple Silicon app and writes `release/Smrt-<version>-arm64.dmg`.
+This packages and signs the Apple Silicon app, then writes, signs and notarizes
+`release/Smrt-<version>-arm64.dmg`. It needs a Developer ID Application certificate in the keychain
+and notarization credentials stored once:
+
+```sh
+xcrun notarytool store-credentials smrt --apple-id <apple-id> --team-id 4QXWK32FYX
+```
 
 ## Release
 
