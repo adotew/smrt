@@ -54,18 +54,27 @@ export interface Versions {
   before: string;
   after: string;
 }
+export interface Card {
+  id: string;
+  front: string;
+  back: string;
+}
+export interface Deck {
+  cards: Card[];
+}
 export interface Folder {
   name: string;
   path: string;
   pdfs: { name: string; path: string }[];
   markdown: { name: string; path: string }[];
+  decks: { name: string; path: string }[];
 }
 
 /** Turns a rect with its page: clockwise for 90, anticlockwise for -90. */
 const turnRect = ([x, y, w, h]: Rect, turn: 90 | -90): Rect =>
   turn === 90 ? [1 - y - h, x, h, w] : [y, 1 - x - w, h, w];
 
-/** Folders of PDFs and markdown files under `libraryPath`; PDFs may have sidecar files next to them. */
+/** Folders of PDFs, markdown files and flashcard decks under `libraryPath`; PDFs may have sidecar files next to them. */
 export function createLibrary(
   libraryPath: string,
   { trash, versionsPath }: { trash: (file: string) => Promise<unknown>; versionsPath: string },
@@ -108,7 +117,13 @@ export function createLibrary(
           files
             .filter((e) => e.name.toLowerCase().endsWith(extension))
             .map((e) => ({ name: e.name, path: path.join(folderPath, e.name) }));
-        return { name: folder.name, path: folderPath, pdfs: withExtension(".pdf"), markdown: withExtension(".md") };
+        return {
+          name: folder.name,
+          path: folderPath,
+          pdfs: withExtension(".pdf"),
+          markdown: withExtension(".md"),
+          decks: withExtension(".cards"),
+        };
       });
   }
 
@@ -142,7 +157,7 @@ export function createLibrary(
     return destination;
   }
 
-  /** Renames a PDF or markdown file, keeping its extension. */
+  /** Renames a PDF, markdown file or deck, keeping its extension. */
   function renameFile(source: string, name: string) {
     source = inLibrary(source);
     const extension = path.extname(source);
@@ -183,12 +198,20 @@ export function createLibrary(
     return file;
   }
 
-  function createMarkdown(folder: string, name: string) {
+  function deckFile(file: string) {
+    file = inLibrary(file);
+    if (!/\.cards$/i.test(file)) throw new Error("That isn't a flashcard deck.");
+    return file;
+  }
+
+  function createFile(folder: string, name: string, extension: string, content: string) {
     folder = inLibrary(folder);
-    const file = path.join(folder, validatedName(name.trim().replace(/\.md$/i, "")) + ".md");
+    name = name.trim();
+    if (name.toLowerCase().endsWith(extension)) name = name.slice(0, -extension.length);
+    const file = path.join(folder, validatedName(name) + extension);
     try {
       // "wx" refuses to overwrite an existing file.
-      fs.writeFileSync(file, "", { flag: "wx" });
+      fs.writeFileSync(file, content, { flag: "wx" });
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error(`“${path.basename(file)}” already exists.`);
       throw error;
@@ -196,11 +219,28 @@ export function createLibrary(
     return file;
   }
 
+  async function writeAtomically(file: string, text: string) {
+    await fs.promises.writeFile(file + ".tmp", text);
+    await fs.promises.rename(file + ".tmp", file);
+  }
+
   async function saveMarkdown(file: string, text: string) {
     file = markdownFile(file);
     if (typeof text !== "string") throw new Error("Markdown must be text.");
-    await fs.promises.writeFile(file + ".tmp", text);
-    await fs.promises.rename(file + ".tmp", file);
+    await writeAtomically(file, text);
+  }
+
+  function readDeck(file: string) {
+    file = deckFile(file);
+    const deck = readSidecar<Deck>(file, "cards") ?? { cards: [] };
+    if (!Array.isArray(deck.cards)) throw new Error(`The cards in “${path.basename(file)}” could not be read.`);
+    return deck;
+  }
+
+  async function saveDeck(file: string, deck: Deck) {
+    file = deckFile(file);
+    if (!Array.isArray(deck?.cards)) throw new Error("A deck must hold a list of cards.");
+    await writeAtomically(file, JSON.stringify(deck, null, 2));
   }
 
   /** Unreadable sidecars throw so the renderer never overwrites them. */
@@ -365,9 +405,12 @@ export function createLibrary(
     importPDF,
     renameFile,
     trashFile,
-    createMarkdown,
+    createMarkdown: (folder: string, name: string) => createFile(folder, name, ".md", ""),
     readMarkdown: (file: string) => fs.promises.readFile(markdownFile(file), "utf8"),
     saveMarkdown,
+    createDeck: (folder: string, name: string) => createFile(folder, name, ".cards", JSON.stringify({ cards: [] })),
+    readDeck,
+    saveDeck,
     readPDF: (pdf: string) => fs.promises.readFile(inLibrary(pdf)),
     readNotes,
     saveNotes,

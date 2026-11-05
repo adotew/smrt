@@ -11,7 +11,8 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "paths": { "$lib": ["./src/lib"], "$lib/*": ["./src/lib/*"] }
   },
   "include": ["electron", "src", "scripts", "vite.config.ts"]
 }

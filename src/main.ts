@@ -1,5 +1,5 @@
 import "pdfjs-dist/web/pdf_viewer.css";
-import "./app.css";
+import "./tailwind.css";
 import { mount } from "svelte";
 import App from "./App.svelte";
 

@@ -9,7 +9,7 @@
   --background: #fff;
   --sidebar: #f5f5f7;
   --separator: rgb(0 0 0 / 0.1);
-  --secondary: rgb(0 0 0 / 0.5);
+  --label: rgb(0 0 0 / 0.5);
   --tertiary: rgb(0 0 0 / 0.3);
   --hover: rgb(0 0 0 / 0.05);
   --fill: rgb(0 0 0 / 0.04);
@@ -24,7 +24,7 @@
     --background: #1e1e1e;
     --sidebar: #262626;
     --separator: rgb(255 255 255 / 0.1);
-    --secondary: rgb(255 255 255 / 0.55);
+    --label: rgb(255 255 255 / 0.55);
     --tertiary: rgb(255 255 255 / 0.3);
     --hover: rgb(255 255 255 / 0.06);
     --fill: rgb(255 255 255 / 0.05);
@@ -82,7 +82,7 @@ button {
   border: 0;
   border-radius: 6px;
   background: none;
-  color: var(--secondary);
+  color: var(--label);
 }
 
 .icon-button:hover:not(:disabled) {
@@ -116,7 +116,7 @@ main {
   gap: 6px;
   padding: 20px;
   text-align: center;
-  color: var(--secondary);
+  color: var(--label);
 }
 
 .empty h3 {
@@ -316,7 +316,7 @@ main {
   display: grid;
   place-items: center;
   width: 12px;
-  color: var(--secondary);
+  color: var(--label);
   transition: transform 0.15s;
 }
 
@@ -667,7 +667,7 @@ dialog .primary {
   margin: 0.8em 0;
   padding-left: 14px;
   border-left: 3px solid var(--separator);
-  color: var(--secondary);
+  color: var(--label);
 }
 
 .ProseMirror img {
@@ -711,7 +711,7 @@ dialog .primary {
 }
 
 .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
-  color: var(--secondary);
+  color: var(--label);
   text-decoration: line-through;
 }
 
@@ -762,7 +762,7 @@ dialog .primary {
 .chevron-down {
   display: grid;
   transform: rotate(90deg);
-  color: var(--secondary);
+  color: var(--label);
 }
 
 /* Solid, since a blurred backdrop doesn't work inside the toolbar's own. */
@@ -826,7 +826,7 @@ dialog .primary {
 .slash-menu .check {
   display: grid;
   margin-left: auto;
-  color: var(--secondary);
+  color: var(--label);
 }
 
 .slash-menu .block-icon {
@@ -834,7 +834,7 @@ dialog .primary {
   place-items: center;
   width: 28px;
   height: 28px;
-  color: var(--secondary);
+  color: var(--label);
 }
 
 .ProseMirror .is-empty::before {
@@ -843,4 +843,37 @@ dialog .primary {
   height: 0;
   pointer-events: none;
   color: var(--tertiary);
+}
+
+/* Flashcards */
+
+.card-markdown {
+  display: flex;
+  flex-direction: column;
+}
+
+.card-markdown .ProseMirror {
+  flex: 1;
+  padding: 24px 28px;
+  outline: none;
+  font-size: 17px;
+  line-height: 1.6;
+  user-select: text;
+}
+
+.card-markdown .ProseMirror[contenteditable="true"] {
+  cursor: text;
+}
+
+.card-markdown .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+.card-markdown.study .ProseMirror {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 40px 56px;
+  font-size: 24px;
+  text-align: center;
 }

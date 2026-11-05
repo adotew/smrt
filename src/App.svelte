@@ -4,6 +4,7 @@
   import { slide } from "svelte/transition";
   import { SvelteSet } from "svelte/reactivity";
   import type { Folder } from "../electron/library.ts";
+  import Deck from "./Deck.svelte";
   import EmptyState from "./EmptyState.svelte";
   import FileIcon from "./FileIcon.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
@@ -21,7 +22,7 @@
   let expanded = new SvelteSet<string>();
   /** Folder used for imports. */
   let folderPath: string | null = $state(null);
-  /** The open PDF or markdown file. */
+  /** The open PDF, markdown file or deck. */
   let filePath: string | null = $state(null);
   let showingNotes = $state(false);
   let placingNote = $state(false);
@@ -29,6 +30,7 @@
   let fullscreen = $state(false);
   let reader: Reader | undefined = $state();
   let markdown: MarkdownEditor | undefined = $state();
+  let deck: Deck | undefined = $state();
 
   let promptDialog: HTMLDialogElement;
   let prompt = $state({ title: "", confirm: "", value: "" });
@@ -37,9 +39,12 @@
 
   // Leaves room for the traffic lights outside fullscreen.
   const windowed = $derived(api.platform === "darwin" && !fullscreen);
-  const isMarkdown = (path: string) => /\.md$/i.test(path);
-  const markdownPath = $derived(filePath && isMarkdown(filePath) ? filePath : null);
-  const pdfPath = $derived(filePath && !markdownPath ? filePath : null);
+  const fileType = (path: string) => (/\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : "pdf");
+  const markdownPath = $derived(filePath && fileType(filePath) === "md" ? filePath : null);
+  const deckPath = $derived(filePath && fileType(filePath) === "cards" ? filePath : null);
+  const pdfPath = $derived(filePath && fileType(filePath) === "pdf" ? filePath : null);
+  /** Lets pending markdown and deck saves land before their file moves. */
+  const flushEditors = () => Promise.all([markdown?.flush(), deck?.flush()]);
   /** Slides the list open while the files travel down from the folder, and back up on close. */
   function reveal(node: Element) {
     const { css } = slide(node, { duration: 200 });
@@ -50,7 +55,7 @@
     };
   }
 
-  const baseName = (name: string) => name.replace(/\.(pdf|md)$/i, "");
+  const baseName = (name: string) => name.replace(/\.(pdf|md|cards)$/i, "");
   const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
 
   onMount(() => perform(reload));
@@ -125,18 +130,18 @@
     });
   }
 
-  async function newMarkdown(target: string) {
-    const name = await ask("New Markdown File", "Create");
+  async function newFile(target: string, type: "md" | "cards") {
+    const name = await ask(type === "md" ? "New Markdown File" : "New Flashcard Deck", "Create");
     if (name == null) return;
     await perform(async () => {
-      const created = await api.createMarkdown(target, name);
+      const created = await (type === "md" ? api.createMarkdown(target, name) : api.createDeck(target, name));
       await reload();
       openFile(created);
     });
   }
 
   function openFile(path: string) {
-    const parent = folders.find((f) => [...f.pdfs, ...f.markdown].some((p) => p.path === path));
+    const parent = folders.find((f) => [...f.pdfs, ...f.markdown, ...f.decks].some((p) => p.path === path));
     folderPath = parent?.path ?? null;
     if (parent) expanded.add(parent.path);
     filePath = path;
@@ -144,14 +149,20 @@
 
   async function fileMenu(file: File) {
     const choice = await api.contextMenu([
+      ...(fileType(file.path) === "cards" ? [{ id: "edit", label: "Edit Cards" }] : []),
       { id: "rename", label: "Rename…" },
       { id: "trash", label: "Move to Trash" },
     ]);
-    if (choice === "rename") {
-      const name = await ask(isMarkdown(file.path) ? "Rename Markdown File" : "Rename PDF", "Rename", baseName(file.name));
+    if (choice === "edit") {
+      openFile(file.path);
+      await tick();
+      deck?.startEditing();
+    } else if (choice === "rename") {
+      const titles = { md: "Rename Markdown File", cards: "Rename Deck", pdf: "Rename PDF" };
+      const name = await ask(titles[fileType(file.path)], "Rename", baseName(file.name));
       if (name == null) return;
       await perform(async () => {
-        if (markdownPath === file.path) await markdown?.flush();
+        if (filePath === file.path) await flushEditors();
         const renamed = await api.renameFile(file.path, name);
         if (filePath === file.path) filePath = renamed;
         await reload();
@@ -160,7 +171,7 @@
       await perform(async () => {
         // Closing first lets pending saves land before the file moves, so they can't recreate it.
         if (filePath === file.path) {
-          await markdown?.flush();
+          await flushEditors();
           filePath = null;
           await tick();
         }
@@ -170,14 +181,16 @@
     }
   }
 
-  async function folderMenu(target: Folder) {
+  async function folderMenu(target: string) {
     const choice = await api.contextMenu([
       { id: "import", label: "Import PDF…" },
       { id: "markdown", label: "New Markdown File…" },
+      { id: "deck", label: "New Flashcard Deck…" },
     ]);
-    folderPath = target.path;
-    if (choice === "import") await importInto(target.path);
-    else if (choice === "markdown") await newMarkdown(target.path);
+    folderPath = target;
+    if (choice === "import") await importInto(target);
+    else if (choice === "markdown") await newFile(target, "md");
+    else if (choice === "deck") await newFile(target, "cards");
   }
 
   function toggleFolder(target: Folder) {
@@ -204,7 +217,7 @@
     <div id="drag-strip"></div>
     <div id="reader-controls" class:windowed class:floating={!showingSidebar}>
       {@render iconButton("newFolder", "New Folder", newFolder)}
-      {@render iconButton("add", "Import PDF", () => importInto(folderPath), !folderPath)}
+      {@render iconButton("add", "Add to Folder", () => folderPath && folderMenu(folderPath), !folderPath)}
     </div>
     <div id="sidebar-toggle" class:floating={!showingSidebar}>
       {@render iconButton("sidebar", showingSidebar ? "Hide Sidebar" : "Show Sidebar", () => (showingSidebar = !showingSidebar))}
@@ -225,14 +238,14 @@
                   class="row"
                   class:selected={folderPath === f.path && !filePath}
                   onclick={() => toggleFolder(f)}
-                  oncontextmenu={() => folderMenu(f)}
+                  oncontextmenu={() => folderMenu(f.path)}
                 >
                   <span class="chevron" class:open><Icon name="chevronRight" size={12} /></span>
                   <span class="label">{f.name}</span>
                 </button>
                 {#if open}
                   <ul role="group" transition:reveal>
-                    {#each [...f.pdfs, ...f.markdown].sort(byName) as file (file.path)}
+                    {#each [...f.pdfs, ...f.markdown, ...f.decks].sort(byName) as file (file.path)}
                       <li role="treeitem" aria-selected={filePath === file.path}>
                         <button
                           class="row file"
@@ -240,7 +253,7 @@
                           onclick={() => openFile(file.path)}
                           oncontextmenu={() => fileMenu(file)}
                         >
-                          <FileIcon type={isMarkdown(file.path) ? "md" : "pdf"} size={22} />
+                          <FileIcon type={fileType(file.path)} size={22} />
                           <span class="label">{file.name}</span>
                         </button>
                       </li>
@@ -270,6 +283,10 @@
             inset={showingSidebar ? SIDEBAR_INSET : 0}
             onerror={showError}
           />
+        {/key}
+      {:else if deckPath}
+        {#key deckPath}
+          <Deck bind:this={deck} path={deckPath} inset={showingSidebar ? SIDEBAR_INSET : 0} onerror={showError} />
         {/key}
       {:else if pdfPath}
         <div id="bottom-toolbar" class="floating" style:--inset="{showingSidebar ? SIDEBAR_INSET : 0}px">

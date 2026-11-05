@@ -203,3 +203,22 @@ test("markdown files are created, saved, listed, renamed and trashed", async () 
   await library.trashFile(renamed);
   assert.deepEqual(trashed.map((f) => path.basename(f)), ["Plans.md"]);
 });
+
+test("decks are created, saved, listed, renamed and validated", async () => {
+  const { library, source } = setup();
+  const folder = library.createFolder("Math");
+  const pdf = library.importPDF(source, folder);
+  const deck = library.createDeck(folder, "Terms.cards");
+  assert.equal(path.basename(deck), "Terms.cards");
+  assert.throws(() => library.createDeck(folder, "Terms"), /already exists/);
+  assert.deepEqual(library.readDeck(deck), { cards: [] });
+  const cards = [{ id: "a", front: "Q", back: "A" }];
+  await library.saveDeck(deck, { cards });
+  assert.deepEqual(library.readDeck(deck), { cards });
+  await assert.rejects(library.saveDeck(deck, {} as never), /list of cards/);
+  assert.throws(() => library.readDeck(pdf), /isn.t a flashcard deck/);
+  fs.writeFileSync(deck, "{}");
+  assert.throws(() => library.readDeck(deck), /could not be read/);
+  assert.deepEqual(library.listLibrary()[0].decks.map((f) => f.name), ["Terms.cards"]);
+  assert.equal(path.basename(library.renameFile(deck, "Words")), "Words.cards");
+});

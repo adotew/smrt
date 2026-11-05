@@ -3,7 +3,7 @@
 A PDF library and reader with per-page notes and a markdown editor, built with Electron, Svelte,
 TypeScript, pdf.js and Tiptap. It runs on macOS, Windows and Linux.
 
-PDFs and markdown files live in folders inside the `Library` folder in Smrt's app data directory:
+PDFs, markdown files and flashcard decks live in folders inside the `Library` folder in Smrt's app data directory:
 
 | System  | Library folder                                 |
 | ------- | ---------------------------------------------- |
@@ -22,6 +22,10 @@ Undo covers page edits, highlights, notes and text boxes until you open another 
 Right-click a folder and choose **New Markdown File…** to write notes of your own. They are
 plain `.md` files, saved as you type; images are embedded in them as data URLs. Type `/` to
 add headings, lists, checklists, quotes, code, dividers or images, and select text to format it.
+
+Choose **New Flashcard Deck…** on a folder to make a `.cards` file. A deck opens ready to study:
+press Space to flip a card and ← → to move between cards. Right-click a deck and choose
+**Edit Cards** to add or change cards; both sides are written in markdown.
 
 On first launch, an existing library from the old macpdf app is copied over; the
 original folder is left as it was.
