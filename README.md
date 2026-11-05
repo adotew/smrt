@@ -79,6 +79,14 @@ open release/Smrt-darwin-arm64/Smrt.app
 
 If macOS blocks the app, right-click it and choose **Open** the first time.
 
+```sh
+npm run dmg
+```
+
+This packages the Apple Silicon app and writes `release/Smrt-<version>-arm64.dmg`. The app is not
+notarized, so after downloading it, macOS refuses the first launch: open **System Settings →
+Privacy & Security** and choose **Open Anyway**.
+
 On launch, a packaged app checks the latest [GitHub release](https://github.com/adotew/smrt/releases)
 and offers to open its page when it is newer; **Smrt → Check for Updates…** checks by hand. To
 release, bump `version` in `package.json` and publish a release tagged with it, such as `v1.0.1`.

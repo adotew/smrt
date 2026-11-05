@@ -11,7 +11,8 @@
     "test": "node --test",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "build": "node scripts/electron.ts && vite build",
-    "package": "npm run build && electron-packager . Smrt --out=release --overwrite --icon=assets/Smrt --ignore=\"^/(assets|src|electron|scripts|release|vite\\.config\\.ts|tsconfig\\.json|index\\.html)\""
+    "package": "npm run build && electron-packager . Smrt --out=release --overwrite --icon=assets/Smrt --ignore=\"^/(assets|src|electron|scripts|release|vite\\.config\\.ts|tsconfig\\.json|index\\.html)\"",
+    "dmg": "npm run package -- --arch=arm64 && node scripts/dmg.ts"
   },
   "license": "ISC",
   "type": "module",
