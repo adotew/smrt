@@ -1,0 +1,32 @@
+{
+  "fill": {
+    "solid": "srgb:0.10980,0.10980,0.11765,1.00000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "circle.svg",
+          "name": "circle"
+        },
+        {
+          "image-name": "triangle.svg",
+          "name": "triangle"
+        },
+        {
+          "image-name": "bar.svg",
+          "name": "bar"
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}
