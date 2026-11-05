@@ -79,6 +79,10 @@ open release/Smrt-darwin-arm64/Smrt.app
 
 If macOS blocks the app, right-click it and choose **Open** the first time.
 
+On launch, a packaged app checks the latest [GitHub release](https://github.com/adotew/smrt/releases)
+and offers to open its page when it is newer; **Smrt → Check for Updates…** checks by hand. To
+release, bump `version` in `package.json` and publish a release tagged with it, such as `v1.0.1`.
+
 ## Check and test
 
 ```sh

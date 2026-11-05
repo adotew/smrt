@@ -1,7 +1,8 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, Menu, dialog, ipcMain, shell, type MenuItemConstructorOptions } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { createLibrary } from "./library.ts";
+import { newerRelease } from "./updates.ts";
 
 export type MenuItem = { id: string; label: string } | { type: "separator" };
 export type Command =
@@ -53,11 +54,55 @@ function contextMenu(window: BrowserWindow, items: MenuItem[]) {
   });
 }
 
+/** Quiet checks, as on launch, only speak up when there is an update. */
+async function checkForUpdates(window: BrowserWindow, quiet: boolean) {
+  const current = app.getVersion();
+  let update;
+  try {
+    update = await newerRelease(current);
+  } catch (error) {
+    if (!quiet) {
+      const detail = error instanceof Error ? error.message : String(error);
+      await dialog.showMessageBox(window, { type: "warning", message: "Smrt couldn't check for updates.", detail });
+    }
+    return;
+  }
+  if (update) {
+    const { response } = await dialog.showMessageBox(window, {
+      message: `Smrt ${update.version} is available`,
+      detail: `You have version ${current}.`,
+      buttons: ["Download", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (response === 0) await shell.openExternal(update.url);
+  } else if (!quiet) {
+    await dialog.showMessageBox(window, { message: "Smrt is up to date", detail: `Version ${current} is the newest.` });
+  }
+}
+
 function buildMenu(window: BrowserWindow) {
   const send = (command: Command) => () => window.webContents.send("command", command);
+  const checkItem = { label: "Check for Updates…", click: () => checkForUpdates(window, false) };
+  const appMenu: MenuItemConstructorOptions = {
+    label: app.name,
+    submenu: [
+      { role: "about" },
+      checkItem,
+      { type: "separator" },
+      { role: "services" },
+      { type: "separator" },
+      { role: "hide" },
+      { role: "hideOthers" },
+      { role: "unhide" },
+      { type: "separator" },
+      { role: "quit" },
+    ],
+  };
+  const helpMenu: MenuItemConstructorOptions = { role: "help", submenu: [checkItem] };
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
-      ...(isMac ? [{ role: "appMenu" } as const] : []),
+      ...(isMac ? [appMenu] : []),
       { role: "fileMenu" },
       {
         label: "Edit",
@@ -88,6 +133,7 @@ function buildMenu(window: BrowserWindow) {
         ],
       },
       { role: "windowMenu" },
+      ...(isMac ? [] : [helpMenu]),
     ]),
   );
 }
@@ -129,7 +175,10 @@ app.whenReady().then(() => {
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   window.on("enter-full-screen", () => window.webContents.send("fullscreen", true));
   window.on("leave-full-screen", () => window.webContents.send("fullscreen", false));
-  window.once("ready-to-show", () => window.show());
+  window.once("ready-to-show", () => {
+    window.show();
+    if (app.isPackaged) checkForUpdates(window, true);
+  });
   if (process.env.VITE_DEV_SERVER_URL) {
     window.loadURL(process.env.VITE_DEV_SERVER_URL);
     window.webContents.openDevTools({ mode: "detach" });
