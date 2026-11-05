@@ -30,6 +30,16 @@ press Space to flip a card and ← → to move between cards. Right-click a deck
 On first launch, an existing library from the old macpdf app is copied over; the
 original folder is left as it was.
 
+## Install
+
+On an Apple Silicon Mac, download `Smrt-<version>-arm64.dmg` from the
+[latest release](https://github.com/adotew/smrt/releases/latest), open it and drag Smrt into
+Applications. Smrt isn't notarized yet, so macOS blocks the first launch: open **System Settings →
+Privacy & Security** and choose **Open Anyway**.
+
+Smrt checks for a newer release on launch and offers to open its download page;
+**Smrt → Check for Updates…** checks by hand.
+
 ## Run
 
 Requires Node 24 or later, which runs the TypeScript build scripts and tests directly.
@@ -83,13 +93,19 @@ If macOS blocks the app, right-click it and choose **Open** the first time.
 npm run dmg
 ```
 
-This packages the Apple Silicon app and writes `release/Smrt-<version>-arm64.dmg`. The app is not
-notarized, so after downloading it, macOS refuses the first launch: open **System Settings →
-Privacy & Security** and choose **Open Anyway**.
+This packages the Apple Silicon app and writes `release/Smrt-<version>-arm64.dmg`.
 
-On launch, a packaged app checks the latest [GitHub release](https://github.com/adotew/smrt/releases)
-and offers to open its page when it is newer; **Smrt → Check for Updates…** checks by hand. To
-release, bump `version` in `package.json` and publish a release tagged with it, such as `v1.0.1`.
+## Release
+
+1. Bump `version` in `package.json`, commit and push.
+2. Build the disk image: `npm run dmg`.
+3. Publish it as a release tagged with the version:
+
+   ```sh
+   gh release create v1.0.1 release/Smrt-1.0.1-arm64.dmg --title "Smrt 1.0.1" --notes "…"
+   ```
+
+Installed copies compare their version with the latest release's tag and offer the update.
 
 ## Check and test
 
