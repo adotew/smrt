@@ -256,6 +256,13 @@ main {
     0 2px 8px rgb(0 0 0 / 0.15);
 }
 
+/* The pill only needs to stand out over PDF pages. */
+.floating.bare {
+  background: none;
+  backdrop-filter: none;
+  box-shadow: none;
+}
+
 /* Floats over the document so the pages show through, like the toolbar pills. */
 #sidebar {
   position: absolute;

@@ -215,11 +215,11 @@
 <main>
   <section id="reader">
     <div id="drag-strip"></div>
-    <div id="reader-controls" class:windowed class:floating={!showingSidebar}>
+    <div id="reader-controls" class:windowed class:floating={!showingSidebar} class:bare={!pdfPath}>
       {@render iconButton("newFolder", "New Folder", newFolder)}
       {@render iconButton("add", "Add to Folder", () => folderPath && folderMenu(folderPath), !folderPath)}
     </div>
-    <div id="sidebar-toggle" class:floating={!showingSidebar}>
+    <div id="sidebar-toggle" class:floating={!showingSidebar} class:bare={!pdfPath}>
       {@render iconButton("sidebar", showingSidebar ? "Hide Sidebar" : "Show Sidebar", () => (showingSidebar = !showingSidebar))}
     </div>
     <aside id="sidebar" class:hidden={!showingSidebar}>
