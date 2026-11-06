@@ -125,14 +125,14 @@
         {#key studying.id}
           <!-- Mousedown is prevented so the card never takes focus, which would make Space press it as well. -->
           <button
-            class="flex aspect-[3/2] w-full cursor-pointer flex-col rounded-3xl border-0 bg-(--note) p-0 text-inherit"
+            class="flex aspect-[3/2] w-full cursor-pointer flex-col overflow-hidden rounded-3xl border-0 bg-(--note) p-0 text-inherit"
             title="Flip Card"
             onmousedown={(event) => event.preventDefault()}
             onclick={() => (revealed = !revealed)}
           >
             {#key revealed}
               <Markdown
-                class="card-markdown study flex-1"
+                class="card-markdown study min-h-0 flex-1 overflow-auto"
                 value={revealed ? studying.back : studying.front}
                 editable={false}
                 {onerror}
