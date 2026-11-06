@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain, shell, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, shell, type MenuItemConstructorOptions } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { createLibrary } from "./library.ts";
@@ -161,6 +161,7 @@ app.whenReady().then(() => {
     // y centres the traffic lights in the 52px toolbar.
     ...(isMac && { titleBarStyle: "hiddenInset", trafficLightPosition: { x: 18, y: 19 } }),
     show: false,
+    backgroundColor: windowBackground(),
     webPreferences: { preload: path.join(__dirname, "preload.cjs") },
   });
   buildMenu(window);
@@ -173,6 +174,8 @@ app.whenReady().then(() => {
   // A clicked or dropped link would otherwise replace the app with the page.
   window.webContents.on("will-navigate", (event) => event.preventDefault());
   window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  // Shows while resizing before the page repaints, so match --background in app.css.
+  nativeTheme.on("updated", () => window.setBackgroundColor(windowBackground()));
   window.on("enter-full-screen", () => window.webContents.send("fullscreen", true));
   window.on("leave-full-screen", () => window.webContents.send("fullscreen", false));
   window.once("ready-to-show", () => {
@@ -186,5 +189,9 @@ app.whenReady().then(() => {
     window.loadFile("dist/index.html");
   }
 });
+
+function windowBackground() {
+  return nativeTheme.shouldUseDarkColors ? "#1e1e1e" : "#fff";
+}
 
 app.on("window-all-closed", () => app.quit());
