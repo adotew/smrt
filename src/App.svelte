@@ -222,11 +222,7 @@
     <div id="sidebar-toggle" class:floating={!showingSidebar}>
       {@render iconButton("sidebar", showingSidebar ? "Hide Sidebar" : "Show Sidebar", () => (showingSidebar = !showingSidebar))}
     </div>
-    {#if showingSidebar}
-      <aside
-        id="sidebar"
-        transition:slide={{ axis: "x", duration: 200 }}
-      >
+    <aside id="sidebar" class:hidden={!showingSidebar}>
         {#if folders.length === 0}
           <EmptyState icon="newFolder" title="Create a folder" action={{ label: "New Folder", run: newFolder }} />
         {:else}
@@ -264,8 +260,7 @@
             {/each}
           </ul>
         {/if}
-      </aside>
-    {/if}
+    </aside>
     <div id="document">
       <Reader
         bind:this={reader}

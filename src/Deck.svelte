@@ -116,7 +116,7 @@
 
 <svelte:window {onkeydown} onbeforeunload={() => flush()} />
 
-<div class="absolute inset-0 overflow-auto bg-background transition-[padding] duration-200" style:padding-left="{inset}px">
+<div class="absolute inset-0 overflow-auto bg-background [transition:padding-left_var(--motion)]" style:padding-left="{inset}px">
   {#if cards?.length === 0}
     <EmptyState icon="cards" title="Add your first card" action={{ label: "Add Card", run: addCard }} />
   {:else if cards && !editing}

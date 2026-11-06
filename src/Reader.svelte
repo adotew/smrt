@@ -175,8 +175,8 @@
   let redrawTimer: ReturnType<typeof setTimeout> | undefined;
   function scheduleRedraw() {
     clearTimeout(redrawTimer);
-    // Pinching fires continuously; the stretched old canvas stands in until it settles.
-    redrawTimer = setTimeout(() => sheets.filter((s) => s.visible).forEach(draw), 120);
+    // Pinching fires continuously, and the sidebar slides for 0.2s; the stretched old canvas stands in until both settle.
+    redrawTimer = setTimeout(() => sheets.filter((s) => s.visible).forEach(draw), 250);
   }
 
   async function draw(sheet: Sheet) {
