@@ -810,6 +810,72 @@ dialog .primary {
   text-decoration: line-through;
 }
 
+.ProseMirror [data-type="details"] {
+  display: flex;
+  gap: 2px;
+  margin: 0.5em 0;
+}
+
+.ProseMirror [data-type="details"] > button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  /* One text line tall, so the arrow centres on the summary's first line. */
+  height: 1.6em;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ProseMirror [data-type="details"] > button.empty {
+  color: var(--tertiary);
+}
+
+.ProseMirror [data-type="details"] > button:hover {
+  background: var(--separator);
+}
+
+.ProseMirror [data-type="details"] > button::before {
+  content: "";
+  border-block: 4.5px solid transparent;
+  border-left: 7px solid currentColor;
+  transition: transform 0.15s;
+}
+
+.ProseMirror [data-type="details"].is-open > button::before {
+  transform: rotate(90deg);
+}
+
+.ProseMirror [data-type="details"] > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.ProseMirror [data-type="details"] summary {
+  display: block;
+}
+
+/* An open toggle with nothing inside says so, as in Notion; the cursor's own placeholder wins when it is there. */
+.ProseMirror [data-type="detailsContent"] > p:only-child:not(.is-empty):has(> .ProseMirror-trailingBreak:only-child)::before {
+  content: "Empty toggle. Click or type inside.";
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: var(--tertiary);
+}
+
+.ProseMirror [data-type="detailsContent"] > :first-child {
+  margin-top: 0;
+}
+
+.ProseMirror [data-type="detailsContent"] > :last-child {
+  margin-bottom: 0;
+}
+
 /* Hidden until the editor shows it for a selection; sized to its buttons before it is measured for placement. */
 .bubble-menu {
   visibility: hidden;

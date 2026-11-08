@@ -10,6 +10,7 @@
   import StarterKit from "@tiptap/starter-kit";
   import Suggestion, { exitSuggestion, type SuggestionProps } from "@tiptap/suggestion";
   import Icon, { type IconName } from "./Icon.svelte";
+  import { Details, DetailsContent, DetailsSummary } from "./details.ts";
   import { pickImage, shrinkImage } from "./image.ts";
 
   /** A block type offered by the slash menu and, with `is`, by the toolbar's Turn Into menu. */
@@ -36,6 +37,7 @@
     { title: "Bulleted List", icon: "list", aliases: "ul unordered", apply: (c) => c.toggleBulletList(), is: ["bulletList"] },
     { title: "Numbered List", icon: "numberedList", aliases: "ol ordered", apply: (c) => c.toggleOrderedList(), is: ["orderedList"] },
     { title: "Checklist", icon: "checklist", aliases: "todo task", apply: (c) => c.toggleTaskList(), is: ["taskList"] },
+    { title: "Toggle", icon: "chevronRight", aliases: "details collapse", apply: (c) => c.setDetails(), is: ["detailsSummary"] },
     { title: "Quote", icon: "quote", aliases: "blockquote", apply: (c) => c.setBlockquote(), is: ["blockquote"] },
     { title: "Code Block", icon: "codeBlock", aliases: "pre", apply: (c) => c.setCodeBlock(), is: ["codeBlock"] },
     { title: "Divider", icon: "divider", aliases: "hr rule line", apply: (c) => c.setHorizontalRule() },
@@ -90,9 +92,14 @@
         TaskList,
         TaskItem.configure({ nested: true }),
         Image.configure({ allowBase64: true }),
+        Details,
+        DetailsSummary,
+        DetailsContent,
         Markdown,
         Placeholder.configure({
-          placeholder: ({ node }) => (node.type.name === "heading" ? `Heading ${node.attrs.level}` : placeholder),
+          includeChildren: true,
+          placeholder: ({ node }) =>
+            node.type.name === "heading" ? `Heading ${node.attrs.level}` : node.type.name === "detailsSummary" ? "Toggle" : placeholder,
         }),
         BubbleMenu.configure({
           element: bubble,
@@ -158,8 +165,9 @@
   function turnInto(block: Block) {
     toolbarMenu = null;
     if (!editor || block === currentBlock) return;
-    // Clearing first takes the block out of any list or quote, as Notion does.
-    block.apply(editor.chain().focus().clearNodes()).run();
+    // Clearing first takes the block out of any list, quote or toggle, as Notion does.
+    const chain = editor.chain().focus();
+    block.apply(currentBlock.is?.[0] === "detailsSummary" ? chain.unsetDetails() : chain.clearNodes()).run();
   }
 
   function openLink() {
