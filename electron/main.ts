@@ -108,7 +108,8 @@ function buildMenu(window: BrowserWindow) {
       {
         label: "View",
         submenu: [
-          { label: "Toggle Sidebar", accelerator: isMac ? "Ctrl+Cmd+S" : "Ctrl+Shift+S", click: send("toggleSidebar") },
+          // Shown but left to the renderer, so a text editor's own Cmd+B (bold) wins.
+          { label: "Toggle Sidebar", accelerator: "CmdOrCtrl+B", registerAccelerator: false, click: send("toggleSidebar") },
           { label: "Toggle Notes", accelerator: "CmdOrCtrl+Shift+N", click: send("toggleNotes") },
           { label: "Toggle Split View", accelerator: "CmdOrCtrl+\\", click: send("toggleSplit") },
           { type: "separator" },

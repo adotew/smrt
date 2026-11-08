@@ -251,6 +251,16 @@
   </button>
 {/snippet}
 
+<svelte:window
+  onkeydown={(event) => {
+    const mod = api.platform === "darwin" ? event.metaKey : event.ctrlKey;
+    if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "b" && !event.defaultPrevented) {
+      event.preventDefault();
+      showingSidebar = !showingSidebar;
+    }
+  }}
+/>
+
 <main>
   <section id="reader">
     <div id="drag-strip"></div>
