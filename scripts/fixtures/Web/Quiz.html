@@ -1,0 +1,117 @@
+<!doctype html>
+<!-- Self-contained: inline styles and script, keyboard and mouse input. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Transformer Quiz</title>
+    <style>
+      body {
+        font: 16px/1.5 system-ui, sans-serif;
+        max-width: 640px;
+        margin: 48px auto;
+        padding: 0 24px;
+      }
+      .choice {
+        display: block;
+        width: 100%;
+        margin: 8px 0;
+        padding: 12px 16px;
+        border: 1px solid #ccc;
+        border-radius: 10px;
+        background: none;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+      }
+      .choice:hover {
+        background: #f4f4f5;
+      }
+      .right {
+        border-color: #16a34a;
+        background: #dcfce7 !important;
+      }
+      .wrong {
+        border-color: #dc2626;
+        background: #fee2e2 !important;
+      }
+      progress {
+        width: 100%;
+      }
+      kbd {
+        padding: 1px 6px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <progress id="progress" max="1" value="0"></progress>
+    <h1 id="question"></h1>
+    <div id="choices"></div>
+    <p id="feedback"></p>
+    <button id="next" hidden>Next</button>
+    <p><small>Answer with <kbd>1</kbd>–<kbd>4</kbd>, continue with <kbd>Enter</kbd>.</small></p>
+    <script>
+      const questions = [
+        { q: "What replaces recurrence in the Transformer?", choices: ["Convolutions", "Self-attention", "Pooling", "Dropout"], answer: 1 },
+        { q: "Why scale dot products by 1/√dₖ?", choices: ["Speed", "Keep softmax gradients from vanishing", "Save memory", "Tradition"], answer: 1 },
+        { q: "How does the model know word order?", choices: ["Positional encodings", "It doesn't need to", "Recurrence", "Sorting"], answer: 0 },
+        { q: "How many heads in the base model?", choices: ["1", "4", "8", "16"], answer: 2 },
+      ];
+      let index = 0;
+      let score = 0;
+      let answered = false;
+      const $ = (id) => document.getElementById(id);
+
+      function show() {
+        const { q, choices } = questions[index];
+        answered = false;
+        $("question").textContent = `${index + 1}. ${q}`;
+        $("feedback").textContent = "";
+        $("next").hidden = true;
+        $("progress").value = index / questions.length;
+        $("choices").replaceChildren(
+          ...choices.map((text, i) => {
+            const button = document.createElement("button");
+            button.className = "choice";
+            button.textContent = `${i + 1}  ${text}`;
+            button.onclick = () => answer(i);
+            return button;
+          }),
+        );
+      }
+
+      function answer(i) {
+        if (answered) return;
+        answered = true;
+        const correct = questions[index].answer;
+        if (i === correct) score++;
+        const buttons = $("choices").children;
+        buttons[correct].classList.add("right");
+        if (i !== correct) buttons[i].classList.add("wrong");
+        $("feedback").textContent = i === correct ? "Correct!" : "Not quite.";
+        $("next").hidden = false;
+        $("next").focus();
+      }
+
+      function next() {
+        if (!answered) return;
+        if (++index < questions.length) return show();
+        $("progress").value = 1;
+        $("question").textContent = `You scored ${score} / ${questions.length}`;
+        $("choices").replaceChildren();
+        $("feedback").textContent = "";
+        $("next").textContent = "Try again";
+        $("next").onclick = () => location.reload();
+      }
+
+      $("next").onclick = next;
+      addEventListener("keydown", (event) => {
+        if (event.key >= "1" && event.key <= "4") answer(Number(event.key) - 1);
+        else if (event.key === "Enter" && answered && index < questions.length) next();
+      });
+      show();
+    </script>
+  </body>
+</html>

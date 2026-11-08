@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 220" font-family="system-ui, sans-serif" font-size="14">
+  <rect width="600" height="220" rx="12" fill="#eef2ff" />
+  <g fill="#6366f1">
+    <rect x="40" y="90" width="90" height="40" rx="8" />
+    <rect x="255" y="30" width="90" height="40" rx="8" />
+    <rect x="255" y="90" width="90" height="40" rx="8" />
+    <rect x="255" y="150" width="90" height="40" rx="8" />
+    <rect x="470" y="90" width="90" height="40" rx="8" />
+  </g>
+  <g fill="#fff" text-anchor="middle">
+    <text x="85" y="115">Query</text>
+    <text x="300" y="55">Key 1</text>
+    <text x="300" y="115">Key 2</text>
+    <text x="300" y="175">Key 3</text>
+    <text x="515" y="115">Output</text>
+  </g>
+  <g stroke="#6366f1" fill="none">
+    <path d="M130 110 L255 50" stroke-width="1.5" />
+    <path d="M130 110 L255 110" stroke-width="5" />
+    <path d="M130 110 L255 170" stroke-width="1" />
+    <path d="M345 50 L470 110 M345 110 L470 110 M345 170 L470 110" stroke-width="1.5" stroke-dasharray="4 4" />
+  </g>
+  <g fill="#4338ca" text-anchor="middle" font-size="12">
+    <text x="190" y="70">0.15</text>
+    <text x="190" y="104">0.80</text>
+    <text x="190" y="160">0.05</text>
+  </g>
+</svg>

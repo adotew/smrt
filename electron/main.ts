@@ -1,6 +1,18 @@
-import { app, BrowserWindow, Menu, dialog, ipcMain, nativeTheme, shell, type MenuItemConstructorOptions } from "electron";
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  dialog,
+  ipcMain,
+  nativeTheme,
+  net,
+  protocol,
+  shell,
+  type MenuItemConstructorOptions,
+} from "electron";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { createLibrary } from "./library.ts";
 import { newerRelease } from "./updates.ts";
 
@@ -51,6 +63,10 @@ function setTheme(theme: Theme) {
 nativeTheme.themeSource = readTheme();
 
 const library = createLibrary(libraryPath, { trash: (file) => shell.trashItem(file), versionsPath });
+// Standard so an HTML page's relative links resolve, secure so its scripts get secure-context APIs.
+protocol.registerSchemesAsPrivileged([
+  { scheme: "smrt-file", privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+]);
 
 async function importPDF(window: BrowserWindow, folder: string) {
   const { canceled, filePaths } = await dialog.showOpenDialog(window, {
@@ -110,13 +126,20 @@ function openSettings() {
 function load(window: BrowserWindow, hash?: string) {
   // A clicked or dropped link would otherwise replace the app with the page.
   window.webContents.on("will-navigate", (event) => event.preventDefault());
-  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  // HTML pages' new-window links open in the browser.
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/.test(url)) shell.openExternal(url);
+    return { action: "deny" };
+  });
   if (process.env.VITE_DEV_SERVER_URL) window.loadURL(process.env.VITE_DEV_SERVER_URL + (hash ? `#${hash}` : ""));
   else window.loadFile("dist/index.html", { hash });
 }
 
 function buildMenu(window: BrowserWindow) {
   const send = (command: Command) => () => window.webContents.send("command", command);
+  // Inside an HTML page's frame, undo belongs to the page.
+  const undoable = (command: "undo" | "redo") => () =>
+    window.webContents.focusedFrame?.parent ? window.webContents[command]() : send(command)();
   const checkItem = { label: "Check for Updates…", click: () => checkForUpdates(window, false) };
   const settingsItem = { label: "Settings…", accelerator: "CmdOrCtrl+,", click: openSettings };
   const appMenu: MenuItemConstructorOptions = {
@@ -145,8 +168,8 @@ function buildMenu(window: BrowserWindow) {
         label: "Edit",
         submenu: [
           // The renderer decides between a text field's own undo and the document's.
-          { label: "Undo", accelerator: "CmdOrCtrl+Z", click: send("undo") },
-          { label: "Redo", accelerator: "Shift+CmdOrCtrl+Z", click: send("redo") },
+          { label: "Undo", accelerator: "CmdOrCtrl+Z", click: undoable("undo") },
+          { label: "Redo", accelerator: "Shift+CmdOrCtrl+Z", click: undoable("redo") },
           { type: "separator" },
           { role: "cut" },
           { role: "copy" },
@@ -180,7 +203,7 @@ function buildMenu(window: BrowserWindow) {
 
 /** Everything the renderer may invoke; preload.ts exposes these as `window.smrt`. */
 function createHandlers(window: BrowserWindow) {
-  const { inLibrary: _inLibrary, ...exposed } = library;
+  const { inLibrary: _inLibrary, urlFile: _urlFile, ...exposed } = library;
   return {
     ...exposed,
     importPDF: (folder: string) => importPDF(window, folder),
@@ -192,6 +215,14 @@ function createHandlers(window: BrowserWindow) {
 export type Handlers = ReturnType<typeof createHandlers>;
 
 app.whenReady().then(() => {
+  protocol.handle("smrt-file", async (request) => {
+    try {
+      return await net.fetch(pathToFileURL(library.urlFile(request.url)).href);
+    } catch {
+      return new Response(null, { status: 404 });
+    }
+  });
+
   const window = new BrowserWindow({
     width: 1200,
     height: 800,

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>How Attention Works, Part 2</title>
+    <link rel="stylesheet" href="assets/article.css" />
+  </head>
+  <body>
+    <nav>
+      <a href="Article with Assets.html">← Part 1</a>
+    </nav>
+    <main>
+      <h1>Part 2: positional encodings</h1>
+      <p class="lede">Attention alone ignores order, so each position gets a signature added to its embedding.</p>
+      <pre><code>PE(pos, 2i)   = sin(pos / 10000^(2i/d))
+PE(pos, 2i+1) = cos(pos / 10000^(2i/d))</code></pre>
+      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+    </main>
+  </body>
+</html>

@@ -75,13 +75,14 @@ export interface Folder {
   pdfs: { name: string; path: string }[];
   markdown: { name: string; path: string }[];
   decks: { name: string; path: string }[];
+  html: { name: string; path: string }[];
 }
 
 /** Turns a rect with its page: clockwise for 90, anticlockwise for -90. */
 const turnRect = ([x, y, w, h]: Rect, turn: 90 | -90): Rect =>
   turn === 90 ? [1 - y - h, x, h, w] : [y, 1 - x - w, h, w];
 
-/** Folders of PDFs, markdown files and flashcard decks under `libraryPath`; PDFs may have sidecar files next to them. */
+/** Folders of PDFs, markdown files, flashcard decks and HTML pages under `libraryPath`; PDFs may have sidecar files next to them. */
 export function createLibrary(
   libraryPath: string,
   { trash, versionsPath }: { trash: (file: string) => Promise<unknown>; versionsPath: string },
@@ -104,6 +105,13 @@ export function createLibrary(
       throw new Error('Enter a name without any of these characters: \\ / : * ? " < > |');
     }
     return name;
+  }
+
+  /** The library file a `smrt-file://library/<path>` URL names; HTML pages and their assets load through these. */
+  function urlFile(url: string) {
+    const file = decodeURIComponent(new URL(url).pathname);
+    // Windows paths arrive as /C:/...
+    return inLibrary(process.platform === "win32" ? file.slice(1) : file);
   }
 
   const notesPath = (pdf: string) => pdf.replace(/\.pdf$/i, ".notes.json");
@@ -130,6 +138,7 @@ export function createLibrary(
           pdfs: withExtension(".pdf"),
           markdown: withExtension(".md"),
           decks: withExtension(".cards"),
+          html: withExtension(".html"),
         };
       });
   }
@@ -407,6 +416,7 @@ export function createLibrary(
 
   return {
     inLibrary,
+    urlFile,
     listLibrary,
     createFolder,
     importPDF,

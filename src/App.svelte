@@ -21,7 +21,7 @@
   let expanded = new SvelteSet<string>();
   /** Folder used for imports. */
   let folderPath: string | null = $state(null);
-  /** One pane, or two side by side; each shows a PDF, markdown file or deck. */
+  /** One pane, or two side by side; each shows a PDF, markdown file, deck or HTML page. */
   let panes: { id: string; path: string | null }[] = $state([{ id: crypto.randomUUID(), path: null }]);
   /** Index of the pane the sidebar and menu commands act on. */
   let active = $state(0);
@@ -38,7 +38,8 @@
 
   // Leaves room for the traffic lights outside fullscreen.
   const windowed = $derived(api.platform === "darwin" && !fullscreen);
-  const fileType = (path: string) => (/\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : "pdf");
+  const fileType = (path: string) =>
+    /\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : /\.html$/i.test(path) ? "html" : "pdf";
   const filePath = $derived(panes[active].path);
   const view = () => views[panes[active].id];
   // The toolbar pills sit over the left pane, so only its PDFs need their background.
@@ -55,7 +56,7 @@
     };
   }
 
-  const baseName = (name: string) => name.replace(/\.(pdf|md|cards)$/i, "");
+  const baseName = (name: string) => name.replace(/\.(pdf|md|cards|html)$/i, "");
   const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
 
   onMount(() => perform(reload));
@@ -143,7 +144,7 @@
 
   /** Opens `path` in the active pane, or in the other one with `beside`; a file already open just gets focus. */
   function openFile(path: string, beside = false) {
-    const parent = folders.find((f) => [...f.pdfs, ...f.markdown, ...f.decks].some((p) => p.path === path));
+    const parent = folders.find((f) => [...f.pdfs, ...f.markdown, ...f.decks, ...f.html].some((p) => p.path === path));
     folderPath = parent?.path ?? null;
     if (parent) expanded.add(parent.path);
     // Two panes on one file would overwrite each other's saves.
@@ -196,7 +197,7 @@
     } else if (choice === "split") {
       openFile(file.path, true);
     } else if (choice === "rename") {
-      const titles = { md: "Rename Markdown File", cards: "Rename Deck", pdf: "Rename PDF" };
+      const titles = { md: "Rename Markdown File", cards: "Rename Deck", html: "Rename HTML Page", pdf: "Rename PDF" };
       const name = await ask(titles[fileType(file.path)], "Rename", baseName(file.name));
       if (name == null) return;
       await perform(async () => {
@@ -290,7 +291,7 @@
                 </button>
                 {#if open}
                   <ul role="group" transition:reveal>
-                    {#each [...f.pdfs, ...f.markdown, ...f.decks].sort(byName) as file (file.path)}
+                    {#each [...f.pdfs, ...f.markdown, ...f.decks, ...f.html].sort(byName) as file (file.path)}
                       <li role="treeitem" aria-selected={filePath === file.path}>
                         <button
                           class="row file"

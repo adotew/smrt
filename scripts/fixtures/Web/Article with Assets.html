@@ -1,0 +1,49 @@
+<!doctype html>
+<!-- Relative assets, in-page anchors, a link to a sibling page and a link that opens in the browser. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>How Attention Works</title>
+    <link rel="stylesheet" href="assets/article.css" />
+  </head>
+  <body>
+    <nav>
+      <strong>Contents</strong>
+      <a href="#queries">Queries, keys and values</a>
+      <a href="#scaling">Scaling</a>
+      <a href="#heads">Multiple heads</a>
+      <a href="Article Part 2.html">Part 2 →</a>
+    </nav>
+    <main>
+      <h1>How attention works</h1>
+      <p class="lede">A short, illustrated walk through scaled dot-product attention.</p>
+      <img src="assets/attention.svg" alt="Queries attend to keys to weight values" />
+
+      <h2 id="queries">Queries, keys and values</h2>
+      <p>
+        Every token is projected three ways. A <em>query</em> asks what the token is looking for, a
+        <em>key</em> advertises what it offers, and a <em>value</em> is what it hands over once chosen.
+      </p>
+      <pre><code>Attention(Q, K, V) = softmax(QKᵀ / √dₖ) V</code></pre>
+      <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+      <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
+
+      <h2 id="scaling">Scaling</h2>
+      <p>
+        Dot products grow with the dimension <code>dₖ</code>. Large values push softmax into regions with tiny gradients,
+        so the scores are divided by <code>√dₖ</code>.
+      </p>
+      <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
+      <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
+
+      <h2 id="heads">Multiple heads</h2>
+      <p>Several attention functions run in parallel on smaller projections, then their outputs are concatenated.</p>
+      <details>
+        <summary>Why not one big head?</summary>
+        <p>Separate heads can specialise: one may track syntax while another follows coreference.</p>
+      </details>
+      <p>Read the <a href="https://arxiv.org/abs/1706.03762" target="_blank">original paper</a> in your browser.</p>
+      <p><a href="#">Back to top ↑</a></p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,47 @@
+:root {
+  color-scheme: light dark;
+}
+
+body {
+  display: flex;
+  gap: 48px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 48px 24px;
+  font: 17px/1.6 Georgia, serif;
+}
+
+nav {
+  position: sticky;
+  top: 48px;
+  align-self: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 180px;
+  font: 14px system-ui, sans-serif;
+}
+
+main {
+  min-width: 0;
+}
+
+.lede {
+  font-size: 20px;
+  opacity: 0.7;
+}
+
+img {
+  max-width: 100%;
+}
+
+pre {
+  padding: 16px;
+  border-radius: 8px;
+  background: rgb(127 127 127 / 0.12);
+  overflow: auto;
+}
+
+h2 {
+  scroll-margin-top: 24px;
+}

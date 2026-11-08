@@ -1,0 +1,80 @@
+<!doctype html>
+<!-- Reports what a page can and can't do inside Smrt, against what it should be able to do. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Sandbox Check</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font: 15px/1.5 system-ui, sans-serif;
+        max-width: 720px;
+        margin: 48px auto;
+        padding: 0 24px;
+      }
+      td {
+        padding: 6px 12px 6px 0;
+        vertical-align: top;
+      }
+      .expected {
+        color: #16a34a;
+      }
+      .unexpected {
+        color: #dc2626;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Sandbox check</h1>
+    <p>Green rows behave as intended; red rows are gaps. The page follows the app's theme: <strong id="scheme"></strong>.</p>
+    <table id="results"></table>
+    <p><button id="alert">alert()</button> <button id="popup">window.open() a site</button></p>
+    <form id="form">
+      <input name="name" placeholder="A form field" />
+      <button>Submit</button>
+      <output id="submitted"></output>
+    </form>
+    <script>
+      // Each check resolves when the page can do it and throws or rejects when it can't.
+      const checks = [
+        ["Reach the app's file API (parent.smrt)", "blocked", () => parent.smrt.listLibrary],
+        ["Read the app's DOM (parent.document)", "blocked", () => parent.document.title],
+        ["Navigate the app (top.location)", "blocked", () => (top.location.href = "about:blank")],
+        ["Fetch a file beside the page", "works", () => fetch("assets/article.css").then((r) => r.ok || Promise.reject(r.status))],
+        ["Reach the network", "works", () => fetch("https://example.com", { mode: "no-cors" })],
+        ["Secure context APIs (crypto.subtle)", "works", () => crypto.subtle.digest("SHA-256", new Uint8Array())],
+        ["localStorage", "works", () => localStorage.setItem("probe", "1")],
+        ["Cookies", "works", () => (document.cookie = "probe=1")],
+      ];
+      const table = document.getElementById("results");
+      for (const [name, want, check] of checks) {
+        const tr = table.insertRow();
+        tr.insertCell().textContent = name;
+        const cell = tr.insertCell();
+        cell.textContent = "…";
+        const show = (got, detail) => {
+          cell.className = got === want ? "expected" : "unexpected";
+          cell.textContent = `${got}${detail ? ` (${detail})` : ""}, should be ${want}`;
+        };
+        (async () => check())().then(
+          () => show("works"),
+          (error) => show("blocked", error?.name ?? error),
+        );
+      }
+
+      const scheme = matchMedia("(prefers-color-scheme: dark)");
+      const showScheme = () => (document.getElementById("scheme").textContent = scheme.matches ? "dark" : "light");
+      scheme.onchange = showScheme;
+      showScheme();
+
+      document.getElementById("alert").onclick = () => alert("Hello from the page");
+      document.getElementById("popup").onclick = () => window.open("https://example.com");
+      document.getElementById("form").onsubmit = (event) => {
+        event.preventDefault();
+        document.getElementById("submitted").textContent = `Submitted “${new FormData(event.target).get("name")}”`;
+      };
+    </script>
+  </body>
+</html>

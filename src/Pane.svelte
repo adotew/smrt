@@ -3,6 +3,7 @@
   import { cubicOut } from "svelte/easing";
   import { scale } from "svelte/transition";
   import Deck from "./Deck.svelte";
+  import Html from "./Html.svelte";
   import type { IconName } from "./Icon.svelte";
   import MarkdownEditor from "./MarkdownEditor.svelte";
   import Reader from "./Reader.svelte";
@@ -30,9 +31,11 @@
   let markdown: MarkdownEditor | undefined = $state();
   let deck: Deck | undefined = $state();
 
-  const fileType = (path: string) => (/\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : "pdf");
+  const fileType = (path: string) =>
+    /\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : /\.html$/i.test(path) ? "html" : "pdf";
   const markdownPath = $derived(path && fileType(path) === "md" ? path : null);
   const deckPath = $derived(path && fileType(path) === "cards" ? path : null);
+  const htmlPath = $derived(path && fileType(path) === "html" ? path : null);
   const pdfPath = $derived(path && fileType(path) === "pdf" ? path : null);
 
   /** Lets pending markdown and deck saves land before their file moves. */
@@ -55,6 +58,8 @@
   {#key deckPath}
     <Deck bind:this={deck} path={deckPath} {active} {inset} {onerror} />
   {/key}
+{:else if htmlPath}
+  <Html path={htmlPath} {inset} />
 {:else if pdfPath && !editingText}
   <!-- Swaps in place with the text formatting bar, which grows in the same way. -->
   <div class="bottom-toolbar floating" style:--inset="{inset}px" transition:scale={{ start: 0.9, duration: 180, easing: cubicOut }}>

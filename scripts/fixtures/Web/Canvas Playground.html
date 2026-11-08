@@ -1,0 +1,83 @@
+<!doctype html>
+<!-- Full-bleed canvas: resizing, animation and pointer input. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Canvas Playground</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #0f172a;
+      }
+      canvas {
+        display: block;
+      }
+      p {
+        position: fixed;
+        bottom: 16px;
+        width: 100%;
+        margin: 0;
+        color: #94a3b8;
+        font: 14px system-ui, sans-serif;
+        text-align: center;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas"></canvas>
+    <p>Move to attract, click to burst.</p>
+    <script>
+      const canvas = document.getElementById("canvas");
+      const ctx = canvas.getContext("2d");
+      const pointer = { x: innerWidth / 2, y: innerHeight / 2 };
+      const particles = Array.from({ length: 300 }, () => ({
+        x: Math.random() * innerWidth,
+        y: Math.random() * innerHeight,
+        vx: 0,
+        vy: 0,
+        hue: 200 + Math.random() * 80,
+      }));
+
+      function resize() {
+        canvas.width = innerWidth * devicePixelRatio;
+        canvas.height = innerHeight * devicePixelRatio;
+        canvas.style.width = `${innerWidth}px`;
+        canvas.style.height = `${innerHeight}px`;
+        ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+      }
+
+      function frame() {
+        ctx.fillStyle = "rgb(15 23 42 / 0.25)";
+        ctx.fillRect(0, 0, innerWidth, innerHeight);
+        for (const p of particles) {
+          const dx = pointer.x - p.x;
+          const dy = pointer.y - p.y;
+          const distance = Math.hypot(dx, dy) + 1;
+          // Pulled in and swept sideways, so the particles orbit the pointer instead of collapsing onto it.
+          p.vx = (p.vx + ((dx - dy * 0.8) / distance) * 0.3) * 0.96;
+          p.vy = (p.vy + ((dy + dx * 0.8) / distance) * 0.3) * 0.96;
+          p.x += p.vx;
+          p.y += p.vy;
+          ctx.fillStyle = `hsl(${p.hue} 90% 65%)`;
+          ctx.fillRect(p.x, p.y, 2, 2);
+        }
+        requestAnimationFrame(frame);
+      }
+
+      addEventListener("resize", resize);
+      addEventListener("pointermove", (event) => Object.assign(pointer, { x: event.clientX, y: event.clientY }));
+      addEventListener("pointerdown", () => {
+        for (const p of particles) {
+          p.vx += (Math.random() - 0.5) * 30;
+          p.vy += (Math.random() - 0.5) * 30;
+        }
+      });
+      resize();
+      frame();
+    </script>
+  </body>
+</html>

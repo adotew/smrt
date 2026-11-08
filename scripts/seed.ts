@@ -108,6 +108,9 @@ export async function seed(root: string) {
   );
   write("Notes/Empty Deck.cards", json({ cards: [] } satisfies Deck));
 
+  // HTML pages and their assets are real files, so they can be edited and opened in a browser too.
+  fs.cpSync(path.join(import.meta.dirname, "fixtures/Web"), path.join(root, "Web"), { recursive: true });
+
   fs.mkdirSync(path.join(root, "Empty Folder"), { recursive: true });
 }
 

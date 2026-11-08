@@ -186,6 +186,19 @@ test("page edits keep versions that can be restored", async () => {
   }
 });
 
+test("smrt-file URLs resolve only to files in the library", () => {
+  const { library } = setup();
+  const folder = library.createFolder("Web");
+  const page = path.join(folder, "Page Ünï.html");
+  fs.writeFileSync(page, "<p>hi</p>");
+  const url = (file: string) => `smrt-file://library/${file.split(/[\\/]/).filter(Boolean).map(encodeURIComponent).join("/")}`;
+  assert.equal(library.urlFile(url(page)), page);
+  assert.deepEqual(library.listLibrary()[0].html.map((f) => f.name), ["Page Ünï.html"]);
+  assert.throws(() => library.urlFile(url(path.join(folder, "../../outside.html"))), /outside the library/);
+  assert.throws(() => library.urlFile(`${url(folder)}/..%2F..%2F..%2Foutside.html`), /outside the library/);
+  assert.throws(() => library.urlFile("smrt-file://library/etc/passwd"), /outside the library/);
+});
+
 test("markdown files are created, saved, listed, renamed and trashed", async () => {
   const { library, source, trashed } = setup();
   const folder = library.createFolder("Math");

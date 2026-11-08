@@ -29,6 +29,10 @@ Choose **New Flashcard Deck…** on a folder to make a `.cards` file. A deck ope
 press Space to flip a card and ← → to move between cards. Right-click a deck and choose
 **Edit Cards** to add or change cards; both sides are written in markdown.
 
+`.html` files placed in a folder open as interactive pages. Their scripts run in a sandbox
+without access to the library, relative links to files beside them work, and links that open
+a new window go to your browser.
+
 On first launch, an existing library from the old macpdf app is copied over; the
 original folder is left as it was.
 
