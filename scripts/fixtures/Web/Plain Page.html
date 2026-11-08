@@ -1,0 +1,69 @@
+<!doctype html>
+<!-- No styles at all: everything here is the app's default look, as a generated page should get it. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Study Plan</title>
+  </head>
+  <body>
+    <h1>Study plan: Transformers</h1>
+    <p>A week-long plan for working through <a href="Article with Assets.html">How Attention Works</a> and the original paper.</p>
+
+    <h2>Schedule</h2>
+    <table>
+      <thead>
+        <tr><th>Day</th><th>Topic</th><th>Time</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Monday</td><td>Queries, keys and values</td><td>45 min</td></tr>
+        <tr><td>Wednesday</td><td>Scaling and softmax</td><td>30 min</td></tr>
+        <tr><td>Friday</td><td>Multi-head attention</td><td>60 min</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Checklist</h2>
+    <ul>
+      <li><label><input type="checkbox" checked /> Read the abstract</label></li>
+      <li><label><input type="checkbox" /> Derive the attention formula</label></li>
+      <li><label><input type="checkbox" /> Implement a single head</label></li>
+    </ul>
+
+    <h2>Key formula</h2>
+    <pre><code>Attention(Q, K, V) = softmax(QKᵀ / √dₖ) V</code></pre>
+    <p>Press <kbd>Space</kbd> in a deck to flip a card; the scaling term is <code>√dₖ</code>.</p>
+    <blockquote>Attention is all you need.</blockquote>
+
+    <details>
+      <summary>Why divide by √dₖ?</summary>
+      <p>Without it, large dot products push softmax into regions with vanishing gradients.</p>
+    </details>
+
+    <hr />
+
+    <h2>Log a session</h2>
+    <form id="log">
+      <p><input name="topic" placeholder="Topic" required /></p>
+      <p>
+        <select name="minutes">
+          <option>15</option>
+          <option selected>30</option>
+          <option>60</option>
+        </select>
+        minutes
+      </p>
+      <p><textarea name="notes" rows="3" placeholder="Notes"></textarea></p>
+      <p><button>Log</button> <button type="reset">Clear</button></p>
+    </form>
+    <ol id="sessions"></ol>
+    <script>
+      document.getElementById("log").onsubmit = (event) => {
+        event.preventDefault();
+        const data = new FormData(event.target);
+        const item = document.createElement("li");
+        item.textContent = `${data.get("topic")}, ${data.get("minutes")} min${data.get("notes") ? `: ${data.get("notes")}` : ""}`;
+        document.getElementById("sessions").append(item);
+        event.target.reset();
+      };
+    </script>
+  </body>
+</html>

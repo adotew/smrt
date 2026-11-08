@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { PDFDocument } from "pdf-lib";
-import { createLibrary } from "./library.ts";
+import { createLibrary, withPageStyle } from "./library.ts";
 import type { Annotations } from "./library.ts";
 
 function setup() {
@@ -197,6 +197,13 @@ test("smrt-file URLs resolve only to files in the library", () => {
   assert.throws(() => library.urlFile(url(path.join(folder, "../../outside.html"))), /outside the library/);
   assert.throws(() => library.urlFile(`${url(folder)}/..%2F..%2F..%2Foutside.html`), /outside the library/);
   assert.throws(() => library.urlFile("smrt-file://library/etc/passwd"), /outside the library/);
+});
+
+test("HTML pages get the app's stylesheet first in their head", () => {
+  const link = '<link rel="stylesheet" href="smrt-file://app/page.css">';
+  assert.equal(withPageStyle('<!doctype html><html><head lang="en"><style>p{}</style>'), `<!doctype html><html><head lang="en">${link}<style>p{}</style>`);
+  assert.equal(withPageStyle("<!DOCTYPE html>\n<header>Hi</header>"), `<!DOCTYPE html>${link}\n<header>Hi</header>`);
+  assert.equal(withPageStyle("<p>Bare</p>"), `${link}<p>Bare</p>`);
 });
 
 test("markdown files are created, saved, listed, renamed and trashed", async () => {

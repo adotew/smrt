@@ -1,25 +1,19 @@
-:root {
-  color-scheme: light dark;
-}
-
+/* Only the layout is the page's own; fonts, colours and code blocks come from the app's defaults. */
 body {
   display: flex;
   gap: 48px;
   max-width: 960px;
-  margin: 0 auto;
-  padding: 48px 24px;
-  font: 17px/1.6 Georgia, serif;
 }
 
 nav {
   position: sticky;
-  top: 48px;
+  top: 56px;
   align-self: flex-start;
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 180px;
-  font: 14px system-ui, sans-serif;
+  font-size: 14px;
 }
 
 main {
@@ -27,19 +21,8 @@ main {
 }
 
 .lede {
-  font-size: 20px;
-  opacity: 0.7;
-}
-
-img {
-  max-width: 100%;
-}
-
-pre {
-  padding: 16px;
-  border-radius: 8px;
-  background: rgb(127 127 127 / 0.12);
-  overflow: auto;
+  font-size: 1.2em;
+  color: var(--smrt-muted);
 }
 
 h2 {

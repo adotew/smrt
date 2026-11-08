@@ -31,7 +31,9 @@ press Space to flip a card and ← → to move between cards. Right-click a deck
 
 `.html` files placed in a folder open as interactive pages. Their scripts run in a sandbox
 without access to the library, relative links to files beside them work, and links that open
-a new window go to your browser.
+a new window go to your browser. Pages take on Smrt's fonts and colours, in light and dark mode,
+unless they style themselves; [docs/html-pages.md](docs/html-pages.md) explains how to write pages,
+for people and AI agents alike.
 
 On first launch, an existing library from the old macpdf app is copied over; the
 original folder is left as it was.

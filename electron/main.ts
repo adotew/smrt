@@ -13,7 +13,8 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { createLibrary } from "./library.ts";
+import { createLibrary, withPageStyle } from "./library.ts";
+import pageStyle from "./page.css";
 import { newerRelease } from "./updates.ts";
 
 export type Command =
@@ -216,8 +217,15 @@ export type Handlers = ReturnType<typeof createHandlers>;
 
 app.whenReady().then(() => {
   protocol.handle("smrt-file", async (request) => {
+    if (request.url === "smrt-file://app/page.css") return new Response(pageStyle, { headers: { "content-type": "text/css" } });
     try {
-      return await net.fetch(pathToFileURL(library.urlFile(request.url)).href);
+      const file = library.urlFile(request.url);
+      if (/\.html$/i.test(file)) {
+        // shortcut: assumes UTF-8, as nearly all generated pages are; sniff the charset if others turn up.
+        const html = withPageStyle(await fs.promises.readFile(file, "utf8"));
+        return new Response(html, { headers: { "content-type": "text/html; charset=utf-8" } });
+      }
+      return await net.fetch(pathToFileURL(file).href);
     } catch {
       return new Response(null, { status: 404 });
     }

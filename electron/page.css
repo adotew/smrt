@@ -1,0 +1,177 @@
+/* Injected into every HTML page in the library, so pages look like the app unless they style themselves.
+   Unlayered page CSS always beats this layer. Pages can use the --smrt-* variables; docs/html-pages.md lists them. */
+@layer smrt {
+  :root {
+    color-scheme: light dark;
+    --smrt-bg: #fff;
+    --smrt-fg: #1d1d1f;
+    --smrt-muted: rgb(0 0 0 / 0.5);
+    --smrt-surface: rgb(0 0 0 / 0.04);
+    --smrt-border: rgb(0 0 0 / 0.1);
+    --smrt-accent: #0a84ff;
+    --smrt-accent-fg: #fff;
+    --smrt-radius: 8px;
+    --smrt-font: system-ui, sans-serif;
+    --smrt-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --smrt-bg: #1e1e1e;
+      --smrt-fg: #f5f5f7;
+      --smrt-muted: rgb(255 255 255 / 0.55);
+      --smrt-surface: rgb(255 255 255 / 0.05);
+      --smrt-border: rgb(255 255 255 / 0.1);
+    }
+  }
+
+  /* Matches the markdown editor's reading column. */
+  body {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 56px 40px 96px;
+    background: var(--smrt-bg);
+    color: var(--smrt-fg);
+    font: 15px/1.6 var(--smrt-font);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    line-height: 1.25;
+    margin: 1.4em 0 0.4em;
+  }
+  h1 {
+    font-size: 1.9em;
+  }
+  h2 {
+    font-size: 1.45em;
+  }
+  h3 {
+    font-size: 1.15em;
+  }
+  body > :first-child {
+    margin-top: 0;
+  }
+  p {
+    margin: 0.5em 0;
+  }
+  a {
+    color: var(--smrt-accent);
+  }
+  img,
+  video,
+  canvas,
+  svg {
+    max-width: 100%;
+  }
+  img {
+    border-radius: 6px;
+  }
+  hr {
+    border: 0;
+    border-top: 1px solid var(--smrt-border);
+  }
+  blockquote {
+    margin: 0.8em 0;
+    padding-left: 14px;
+    border-left: 3px solid var(--smrt-border);
+    color: var(--smrt-muted);
+  }
+
+  code,
+  kbd,
+  pre {
+    font-family: var(--smrt-mono);
+    font-size: 0.9em;
+  }
+  code,
+  kbd {
+    padding: 0.1em 0.3em;
+    border-radius: 4px;
+    background: var(--smrt-surface);
+  }
+  kbd {
+    border: 1px solid var(--smrt-border);
+  }
+  pre {
+    padding: 12px 16px;
+    border-radius: var(--smrt-radius);
+    background: var(--smrt-surface);
+    overflow-x: auto;
+  }
+  pre code {
+    padding: 0;
+    background: none;
+    font-size: 1em;
+  }
+
+  table {
+    border-collapse: collapse;
+    margin: 1em 0;
+  }
+  th,
+  td {
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--smrt-border);
+    text-align: left;
+  }
+  th {
+    font-weight: 600;
+  }
+
+  details {
+    margin: 0.8em 0;
+    padding: 8px 12px;
+    border-radius: var(--smrt-radius);
+    background: var(--smrt-surface);
+  }
+  summary {
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+    color: inherit;
+  }
+  button {
+    padding: 6px 14px;
+    border: 1px solid var(--smrt-border);
+    border-radius: var(--smrt-radius);
+    background: var(--smrt-surface);
+    cursor: pointer;
+  }
+  button:hover {
+    border-color: var(--smrt-muted);
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]),
+  select,
+  textarea {
+    padding: 6px 10px;
+    border: 1px solid var(--smrt-border);
+    border-radius: var(--smrt-radius);
+    background: var(--smrt-bg);
+  }
+  input,
+  select,
+  textarea,
+  progress {
+    accent-color: var(--smrt-accent);
+  }
+  :focus-visible {
+    outline: 2px solid var(--smrt-accent);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--smrt-accent) 30%, transparent);
+  }
+}

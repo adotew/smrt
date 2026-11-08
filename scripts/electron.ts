@@ -10,6 +10,8 @@ export const buildElectron = () =>
     platform: "node",
     format: "cjs",
     packages: "external",
+    // The page stylesheet main.ts serves is bundled in, as the packaged app leaves out electron/.
+    loader: { ".css": "text" },
     sourcemap: true,
     logLevel: "warning",
   });

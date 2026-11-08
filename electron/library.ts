@@ -78,6 +78,16 @@ export interface Folder {
   html: { name: string; path: string }[];
 }
 
+const pageStyleLink = '<link rel="stylesheet" href="smrt-file://app/page.css">';
+
+/** Puts the app's page stylesheet first in an HTML page's head, so the page's own styles come after and win. */
+export function withPageStyle(html: string) {
+  // The space in (\s...) keeps <header> from matching.
+  const head = /<head(\s[^>]*)?>/i.exec(html) ?? /^\s*<!doctype[^>]*>/i.exec(html);
+  const at = head ? head.index + head[0].length : 0;
+  return html.slice(0, at) + pageStyleLink + html.slice(at);
+}
+
 /** Turns a rect with its page: clockwise for 90, anticlockwise for -90. */
 const turnRect = ([x, y, w, h]: Rect, turn: 90 | -90): Rect =>
   turn === 90 ? [1 - y - h, x, h, w] : [y, 1 - x - w, h, w];
