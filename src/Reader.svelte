@@ -31,7 +31,7 @@
   const PAGE_GAP = 12;
   /** A note's default text box size at scale 1. */
   const NOTE_SIZE = [180, 90] as const;
-  const TEXT_SIZES = [10, 12, 14, 18, 24, 32, 48];
+  const TEXT_SIZES = [8, 10, 12, 14, 18, 24, 32, 48];
   const TEXT_STYLES = [
     ["bold", "Bold"],
     ["italic", "Italic"],
