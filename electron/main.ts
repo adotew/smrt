@@ -14,6 +14,7 @@ export type Command =
   | "zoomIn"
   | "zoomOut"
   | "zoomFit";
+export type Theme = "system" | "light" | "dark";
 
 const isMac = process.platform === "darwin";
 
@@ -34,6 +35,21 @@ if (!fs.existsSync(libraryPath) && fs.existsSync(swiftLibrary)) fs.cpSync(swiftL
 // Undo history lasts one session, so earlier versions are cleared on launch.
 const versionsPath = path.join(app.getPath("temp"), "Smrt Versions");
 fs.rmSync(versionsPath, { recursive: true, force: true });
+const settingsPath = path.join(app.getPath("userData"), "settings.json");
+function readTheme(): Theme {
+  try {
+    const { theme } = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+    if (theme === "light" || theme === "dark") return theme;
+  } catch {}
+  return "system";
+}
+function setTheme(theme: Theme) {
+  if (theme !== "system" && theme !== "light" && theme !== "dark") throw new Error("Unknown theme.");
+  nativeTheme.themeSource = theme;
+  fs.writeFileSync(settingsPath, JSON.stringify({ theme }));
+}
+nativeTheme.themeSource = readTheme();
+
 const library = createLibrary(libraryPath, { trash: (file) => shell.trashItem(file), versionsPath });
 
 async function importPDF(window: BrowserWindow, folder: string) {
@@ -71,14 +87,45 @@ async function checkForUpdates(window: BrowserWindow, quiet: boolean) {
   }
 }
 
+let settingsWindow: BrowserWindow | null = null;
+function openSettings() {
+  if (settingsWindow) return settingsWindow.focus();
+  settingsWindow = new BrowserWindow({
+    width: 420,
+    height: 160,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    title: "Settings",
+    backgroundColor: windowBackground(),
+    webPreferences: { preload: path.join(__dirname, "preload.cjs") },
+  });
+  settingsWindow.setMenuBarVisibility(false);
+  settingsWindow.on("closed", () => (settingsWindow = null));
+  load(settingsWindow, "settings");
+}
+
+/** Loads the renderer; the hash picks the window's view. */
+function load(window: BrowserWindow, hash?: string) {
+  // A clicked or dropped link would otherwise replace the app with the page.
+  window.webContents.on("will-navigate", (event) => event.preventDefault());
+  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  if (process.env.VITE_DEV_SERVER_URL) window.loadURL(process.env.VITE_DEV_SERVER_URL + (hash ? `#${hash}` : ""));
+  else window.loadFile("dist/index.html", { hash });
+}
+
 function buildMenu(window: BrowserWindow) {
   const send = (command: Command) => () => window.webContents.send("command", command);
   const checkItem = { label: "Check for Updates…", click: () => checkForUpdates(window, false) };
+  const settingsItem = { label: "Settings…", accelerator: "CmdOrCtrl+,", click: openSettings };
   const appMenu: MenuItemConstructorOptions = {
     label: app.name,
     submenu: [
       { role: "about" },
       checkItem,
+      { type: "separator" },
+      settingsItem,
       { type: "separator" },
       { role: "services" },
       { type: "separator" },
@@ -105,6 +152,7 @@ function buildMenu(window: BrowserWindow) {
           { role: "copy" },
           { role: "paste" },
           { role: "selectAll" },
+          ...(isMac ? [] : [{ type: "separator" } as const, settingsItem]),
         ],
       },
       {
@@ -136,6 +184,8 @@ function createHandlers(window: BrowserWindow) {
   return {
     ...exposed,
     importPDF: (folder: string) => importPDF(window, folder),
+    readTheme,
+    setTheme,
   };
 }
 
@@ -162,23 +212,18 @@ app.whenReady().then(() => {
     ipcMain.handle(channel, (_event, ...args) => (fn as (...args: unknown[]) => unknown)(...args));
   }
 
-  // A clicked or dropped link would otherwise replace the app with the page.
-  window.webContents.on("will-navigate", (event) => event.preventDefault());
-  window.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   // Shows while resizing before the page repaints, so match --background in app.css.
-  nativeTheme.on("updated", () => window.setBackgroundColor(windowBackground()));
+  nativeTheme.on("updated", () => {
+    for (const w of BrowserWindow.getAllWindows()) w.setBackgroundColor(windowBackground());
+  });
   window.on("enter-full-screen", () => window.webContents.send("fullscreen", true));
   window.on("leave-full-screen", () => window.webContents.send("fullscreen", false));
   window.once("ready-to-show", () => {
     window.show();
     if (app.isPackaged) checkForUpdates(window, true);
   });
-  if (process.env.VITE_DEV_SERVER_URL) {
-    window.loadURL(process.env.VITE_DEV_SERVER_URL);
-    window.webContents.openDevTools({ mode: "detach" });
-  } else {
-    window.loadFile("dist/index.html");
-  }
+  load(window);
+  if (process.env.VITE_DEV_SERVER_URL) window.webContents.openDevTools({ mode: "detach" });
 });
 
 function windowBackground() {
