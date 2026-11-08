@@ -87,12 +87,14 @@ button {
   color: var(--label);
 }
 
-.icon-button:hover:not(:disabled) {
+.icon-button:hover:not(:disabled, [aria-disabled="true"]) {
   background: var(--hover);
   color: CanvasText;
 }
 
-.icon-button:disabled {
+/* aria-disabled where a disabled button would swallow the mousedown that keeps a text box focused. */
+.icon-button:disabled,
+.icon-button[aria-disabled="true"] {
   opacity: 0.35;
 }
 
@@ -238,6 +240,13 @@ main {
   align-items: center;
   gap: 6px;
   padding: 3px;
+}
+
+.text-size {
+  min-width: 20px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--label);
 }
 
 .icon-button.active {
@@ -492,7 +501,7 @@ main {
   outline: 0;
   resize: none;
   font: inherit;
-  font-size: calc(14px * var(--note-scale));
+  font-size: calc(var(--note-size, 14px) * var(--note-scale));
   color: #000;
   background: transparent;
   /* Until a double-click, presses fall through to the note so it can be dragged. */

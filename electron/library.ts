@@ -21,6 +21,11 @@ export interface PageNote {
   w?: number;
   h?: number;
   text: string;
+  /** Font size at scale 1; missing means 14. */
+  size?: number;
+  bold?: boolean;
+  italic?: boolean;
+  underline?: boolean;
 }
 /** Placed like a page note; `src` is a data URL so the image travels with the annotations file. */
 export interface PageImage {

@@ -3,6 +3,9 @@
   import type { PageViewport, PDFDocumentProxy, PDFPageProxy, RenderTask } from "pdfjs-dist";
   import type { Annotations, Notes, PageEdit, PageImage, PageNote, Rect, Versions } from "../electron/library.ts";
   import type { MenuItem } from "../electron/main.ts";
+  import { cubicOut } from "svelte/easing";
+  import { scale as grow } from "svelte/transition";
+  import Icon from "./Icon.svelte";
   import { pickImage, shrinkImage } from "./image.ts";
   import { openPDF, pdfjs } from "./pdf.ts";
 
@@ -28,18 +31,27 @@
   const PAGE_GAP = 12;
   /** A note's default text box size at scale 1. */
   const NOTE_SIZE = [180, 90] as const;
+  const TEXT_SIZES = [10, 12, 14, 18, 24, 32, 48];
+  const TEXT_STYLES = [
+    ["bold", "Bold"],
+    ["italic", "Italic"],
+    ["underline", "Underline"],
+  ] as const;
   const COLORS = ["yellow", "orange", "red", "pink", "purple", "blue", "green"];
 
   let {
     path,
     showingNotes,
     placingNote = $bindable(false),
+    editingText = $bindable(false),
     inset = 0,
     onerror,
   }: {
     path: string | null;
     showingNotes: boolean;
     placingNote?: boolean;
+    /** Whether a text box is being edited, so its formatting bar replaces the PDF toolbar. */
+    editingText?: boolean;
     /** Width on the left covered by the floating sidebar; pages are laid out beside it. */
     inset?: number;
     onerror: (error: unknown) => void;
@@ -71,6 +83,10 @@
   let anchor: { page: number; offset: number } | null = null;
 
   const withNotes = $derived(showingNotes && notes != null);
+  const editedNote = $derived.by(() => annotations?.pageNotes?.find((n) => n.id === editingNote));
+  $effect(() => {
+    editingText = editedNote != null;
+  });
   const fit = $derived(
     pages.length === 0
       ? 1
@@ -507,6 +523,21 @@
     saveAnnotations();
   }
 
+  function toggleTextStyle(note: PageNote, style: (typeof TEXT_STYLES)[number][0]) {
+    record();
+    note[style] = !note[style];
+    saveAnnotations();
+  }
+
+  function resizeText(note: PageNote, step: 1 | -1) {
+    const size = note.size ?? 14;
+    const next = step > 0 ? TEXT_SIZES.find((s) => s > size) : TEXT_SIZES.findLast((s) => s < size);
+    if (!next) return;
+    record();
+    note.size = next;
+    saveAnnotations();
+  }
+
   /** Runs `move` until the pointer is released; the whole gesture is one undo step, saved once. */
   function followPointer(move: (e: PointerEvent) => void) {
     let moved = false;
@@ -701,6 +732,10 @@
                 value={note.text}
                 style:width="{(note.w ?? NOTE_SIZE[0]) * effective}px"
                 style:height="{(note.h ?? NOTE_SIZE[1]) * effective}px"
+                style:--note-size={note.size && `${note.size}px`}
+                style:font-weight={note.bold ? "bold" : null}
+                style:font-style={note.italic ? "italic" : null}
+                style:text-decoration={note.underline ? "underline" : null}
                 readonly={editingNote !== note.id}
                 onmouseup={(event) => resizeNote(note, event.currentTarget)}
                 oninput={(event) => editPageNote(note, event.currentTarget.value)}
@@ -743,6 +778,52 @@
     {/if}
   {/each}
 </div>
+
+<!-- Preventing mousedown keeps the note focused, so it stays in editing. -->
+{#if editedNote}
+  {@const note = editedNote}
+  <div
+    class="bottom-toolbar text-format floating"
+    role="toolbar"
+    tabindex="-1"
+    style:--inset="{inset}px"
+    transition:grow={{ start: 0.9, duration: 180, easing: cubicOut }}
+    onmousedown={(event) => event.preventDefault()}
+  >
+    {#each TEXT_STYLES as [style, label] (style)}
+      <button
+        class="icon-button"
+        class:active={note[style]}
+        title={label}
+        aria-label={label}
+        aria-pressed={!!note[style]}
+        onclick={() => toggleTextStyle(note, style)}
+      >
+        <Icon name={style} />
+      </button>
+    {/each}
+    <div class="toolbar-separator"></div>
+    <button
+      class="icon-button"
+      title="Smaller Text"
+      aria-label="Smaller Text"
+      aria-disabled={(note.size ?? 14) <= TEXT_SIZES[0]}
+      onclick={() => resizeText(note, -1)}
+    >
+      <Icon name="minus" />
+    </button>
+    <span class="text-size">{note.size ?? 14}</span>
+    <button
+      class="icon-button"
+      title="Larger Text"
+      aria-label="Larger Text"
+      aria-disabled={(note.size ?? 14) >= TEXT_SIZES.at(-1)!}
+      onclick={() => resizeText(note, 1)}
+    >
+      <Icon name="add" />
+    </button>
+  </div>
+{/if}
 
 {#if picker}
   <div class="highlight-picker floating" style:left="{picker.x}px" style:top="{picker.y}px">

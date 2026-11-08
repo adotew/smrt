@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { cubicOut } from "svelte/easing";
+  import { scale } from "svelte/transition";
   import Deck from "./Deck.svelte";
   import type { IconName } from "./Icon.svelte";
   import MarkdownEditor from "./MarkdownEditor.svelte";
@@ -23,6 +25,7 @@
 
   let showingNotes = $state(false);
   let placingNote = $state(false);
+  let editingText = $state(false);
   let reader: Reader | undefined = $state();
   let markdown: MarkdownEditor | undefined = $state();
   let deck: Deck | undefined = $state();
@@ -43,7 +46,7 @@
   export const startEditing = () => deck?.startEditing();
 </script>
 
-<Reader bind:this={reader} path={pdfPath} {showingNotes} bind:placingNote {inset} {onerror} />
+<Reader bind:this={reader} path={pdfPath} {showingNotes} bind:placingNote bind:editingText {inset} {onerror} />
 {#if markdownPath}
   {#key markdownPath}
     <MarkdownEditor bind:this={markdown} path={markdownPath} {inset} {onerror} />
@@ -52,8 +55,9 @@
   {#key deckPath}
     <Deck bind:this={deck} path={deckPath} {active} {inset} {onerror} />
   {/key}
-{:else if pdfPath}
-  <div class="bottom-toolbar floating" style:--inset="{inset}px">
+{:else if pdfPath && !editingText}
+  <!-- Swaps in place with the text formatting bar, which grows in the same way. -->
+  <div class="bottom-toolbar floating" style:--inset="{inset}px" transition:scale={{ start: 0.9, duration: 180, easing: cubicOut }}>
     {@render iconButton("notes", "Notes", toggleNotes, false, showingNotes)}
     {@render iconButton("pageNote", "Add Note to Page", () => (placingNote = !placingNote), false, placingNote)}
     {@render iconButton("photo", "Add Image to Page", () => reader?.insertImage())}
