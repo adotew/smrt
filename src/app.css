@@ -488,30 +488,44 @@ main {
   z-index: 1;
   padding: calc(6px * var(--note-scale));
   border-radius: 3px;
+  /* Presses on the empty part of the box reach the page; only the text drags it. */
+  pointer-events: none;
+}
+
+.page-note.editing,
+.note-text span {
+  pointer-events: auto;
 }
 
 .page-note.editing {
   outline: 1px solid var(--accent, #0a84ff);
 }
 
-.page-note textarea {
+.page-note textarea,
+.note-text {
   display: block;
+  margin: 0;
   padding: calc(4px * var(--note-scale)) calc(6px * var(--note-scale));
   border: 0;
   outline: 0;
-  resize: none;
   font: inherit;
   font-size: calc(var(--note-size, 14px) * var(--note-scale));
+  line-height: normal;
+  text-decoration: inherit;
   color: #000;
   background: transparent;
-  /* Until a double-click, presses fall through to the note so it can be dragged. */
-  pointer-events: none;
 }
 
-.page-note.editing textarea {
-  pointer-events: auto;
+.page-note textarea {
   resize: both;
   cursor: text;
+}
+
+/* Wraps like the textarea, so the text doesn't move when editing starts. */
+.note-text {
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 
 .page-image {

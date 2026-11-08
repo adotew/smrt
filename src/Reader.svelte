@@ -713,34 +713,44 @@
         {/each}
         {#each annotations?.pageNotes ?? [] as note (note.id)}
           {#if note.page === index + 1}
-            <!-- Drag anywhere on the note; double-click to edit its text. -->
+            <!-- Drag the note by its text; double-click to edit it. -->
             <div
               class="page-note"
               role="group"
               aria-label="Note on page {index + 1}"
               style:--note-scale={effective}
+              style:--note-size={note.size && `${note.size}px`}
+              style:font-weight={note.bold ? "bold" : null}
+              style:font-style={note.italic ? "italic" : null}
+              style:text-decoration={note.underline ? "underline" : null}
               style:left="min({note.x * 100}%, calc(100% - {((note.w ?? NOTE_SIZE[0]) + 12) * effective}px))"
               style:top="min({note.y * 100}%, calc(100% - {((note.h ?? NOTE_SIZE[1]) + 12) * effective}px))"
               class:editing={editingNote === note.id}
               onpointerdown={(event) => dragNote(event, note)}
               ondblclick={() => editNoteText(note.id)}
             >
-              <textarea
-                id={note.id}
-                aria-label="Note text"
-                placeholder="Text"
-                value={note.text}
-                style:width="{(note.w ?? NOTE_SIZE[0]) * effective}px"
-                style:height="{(note.h ?? NOTE_SIZE[1]) * effective}px"
-                style:--note-size={note.size && `${note.size}px`}
-                style:font-weight={note.bold ? "bold" : null}
-                style:font-style={note.italic ? "italic" : null}
-                style:text-decoration={note.underline ? "underline" : null}
-                readonly={editingNote !== note.id}
-                onmouseup={(event) => resizeNote(note, event.currentTarget)}
-                oninput={(event) => editPageNote(note, event.currentTarget.value)}
-                onblur={() => dropEmptyNote(note)}
-              ></textarea>
+              {#if editingNote === note.id}
+                <textarea
+                  id={note.id}
+                  aria-label="Note text"
+                  placeholder="Text"
+                  value={note.text}
+                  style:width="{(note.w ?? NOTE_SIZE[0]) * effective}px"
+                  style:height="{(note.h ?? NOTE_SIZE[1]) * effective}px"
+                  onmouseup={(event) => resizeNote(note, event.currentTarget)}
+                  oninput={(event) => editPageNote(note, event.currentTarget.value)}
+                  onblur={() => dropEmptyNote(note)}
+                ></textarea>
+              {:else}
+                <!-- Laid out like the textarea; only the span's line boxes take presses. -->
+                <div
+                  class="note-text"
+                  style:width="{(note.w ?? NOTE_SIZE[0]) * effective}px"
+                  style:height="{(note.h ?? NOTE_SIZE[1]) * effective}px"
+                >
+                  <span>{note.text}</span>
+                </div>
+              {/if}
             </div>
           {/if}
         {/each}
