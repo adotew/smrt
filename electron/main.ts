@@ -4,7 +4,6 @@ import path from "node:path";
 import { createLibrary } from "./library.ts";
 import { newerRelease } from "./updates.ts";
 
-export type MenuItem = { id: string; label: string } | { type: "separator" };
 export type Command =
   | "undo"
   | "redo"
@@ -41,18 +40,6 @@ async function importPDF(window: BrowserWindow, folder: string) {
     filters: [{ name: "PDF", extensions: ["pdf"] }],
   });
   return canceled || !filePaths[0] ? null : library.importPDF(filePaths[0], folder);
-}
-
-function contextMenu(window: BrowserWindow, items: MenuItem[]) {
-  return new Promise<string | null>((resolve) => {
-    let chosen: string | null = null;
-    Menu.buildFromTemplate(
-      items.map((item) => ("type" in item ? item : { label: item.label, click: () => (chosen = item.id) })),
-    ).popup({
-      window,
-      callback: () => setImmediate(() => resolve(chosen)),
-    });
-  });
 }
 
 /** Quiet checks, as on launch, only speak up when there is an update. */
@@ -146,7 +133,6 @@ function createHandlers(window: BrowserWindow) {
   return {
     ...exposed,
     importPDF: (folder: string) => importPDF(window, folder),
-    contextMenu: (items: MenuItem[]) => contextMenu(window, items),
   };
 }
 

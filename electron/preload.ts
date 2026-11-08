@@ -32,7 +32,6 @@ const channels: Record<keyof Handlers, true> = {
   savePosition: true,
   editPage: true,
   restoreVersion: true,
-  contextMenu: true,
 };
 
 contextBridge.exposeInMainWorld("smrt", {

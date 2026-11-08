@@ -2,9 +2,9 @@
   import { onDestroy, tick, untrack } from "svelte";
   import type { PageViewport, PDFDocumentProxy, PDFPageProxy, RenderTask } from "pdfjs-dist";
   import type { Annotations, Notes, PageEdit, PageImage, PageNote, Rect, Versions } from "../electron/library.ts";
-  import type { MenuItem } from "../electron/main.ts";
   import { cubicOut } from "svelte/easing";
   import { scale as grow, slide } from "svelte/transition";
+  import { contextMenu, type MenuItem } from "./ContextMenu.svelte";
   import Icon from "./Icon.svelte";
   import { pickImage, shrinkImage } from "./image.ts";
   import { openPDF, pdfjs } from "./pdf.ts";
@@ -439,7 +439,7 @@
     const removeHighlight: MenuItem[] = hit ? [{ id: "removeHighlight", label: "Remove Highlight" }, separator] : [];
     const deletePage: MenuItem[] = pages.length > 1 ? [separator, { id: "delete", label: "Delete Page" }] : [];
     const imageItems: MenuItem[] = image ? [{ id: "removeImage", label: "Remove Image" }, separator] : [];
-    const chosen = await api.contextMenu([
+    const chosen = await contextMenu([
       ...imageItems,
       ...removeHighlight,
       { id: "insertBlank", label: "Insert Blank Page After" },

@@ -4,6 +4,7 @@
   import { slide } from "svelte/transition";
   import { SvelteSet } from "svelte/reactivity";
   import type { Folder } from "../electron/library.ts";
+  import ContextMenu, { contextMenu } from "./ContextMenu.svelte";
   import EmptyState from "./EmptyState.svelte";
   import FileIcon from "./FileIcon.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
@@ -181,7 +182,7 @@
   }
 
   async function fileMenu(file: File) {
-    const choice = await api.contextMenu([
+    const choice = await contextMenu([
       ...(fileType(file.path) === "cards" ? [{ id: "edit", label: "Edit Cards" }] : []),
       { id: "split", label: "Open in Split View" },
       { type: "separator" as const },
@@ -220,7 +221,7 @@
   }
 
   async function folderMenu(target: string) {
-    const choice = await api.contextMenu([
+    const choice = await contextMenu([
       { id: "import", label: "Import PDF…" },
       { id: "markdown", label: "New Markdown File…" },
       { id: "deck", label: "New Flashcard Deck…" },
@@ -322,6 +323,8 @@
     </div>
   </section>
 </main>
+
+<ContextMenu />
 
 <dialog bind:this={promptDialog}>
   <form method="dialog">
