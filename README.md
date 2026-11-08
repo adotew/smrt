@@ -19,7 +19,7 @@ Right-click a page to insert a blank page after it, duplicate, rotate or delete 
 These edits rewrite the PDF itself; the previous version goes to the Trash each time.
 Undo covers page edits, highlights, notes and text boxes until you open another PDF or quit.
 While you edit a text box, the bar above the PDF toolbar makes its text bold, italic or underlined
-and changes its size.
+changes its size and colour.
 
 Right-click a folder and choose **New Markdown File…** to write notes of your own. They are
 plain `.md` files, saved as you type; images are embedded in them as data URLs. Type `/` to

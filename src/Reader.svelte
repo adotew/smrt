@@ -4,7 +4,7 @@
   import type { Annotations, Notes, PageEdit, PageImage, PageNote, Rect, Versions } from "../electron/library.ts";
   import type { MenuItem } from "../electron/main.ts";
   import { cubicOut } from "svelte/easing";
-  import { scale as grow } from "svelte/transition";
+  import { scale as grow, slide } from "svelte/transition";
   import Icon from "./Icon.svelte";
   import { pickImage, shrinkImage } from "./image.ts";
   import { openPDF, pdfjs } from "./pdf.ts";
@@ -36,6 +36,15 @@
     ["bold", "Bold"],
     ["italic", "Italic"],
     ["underline", "Underline"],
+  ] as const;
+  /** Dark enough to read on a white page. */
+  const TEXT_COLORS = [
+    ["#000000", "Black"],
+    ["#d70015", "Red"],
+    ["#c93400", "Orange"],
+    ["#248a3d", "Green"],
+    ["#0040dd", "Blue"],
+    ["#8944ab", "Purple"],
   ] as const;
   const COLORS = ["yellow", "orange", "red", "pink", "purple", "blue", "green"];
 
@@ -84,8 +93,11 @@
 
   const withNotes = $derived(showingNotes && notes != null);
   const editedNote = $derived.by(() => annotations?.pageNotes?.find((n) => n.id === editingNote));
+  /** Whether the formatting bar shows every text colour instead of just the current one. */
+  let pickingColor = $state(false);
   $effect(() => {
     editingText = editedNote != null;
+    pickingColor = false;
   });
   const fit = $derived(
     pages.length === 0
@@ -538,6 +550,14 @@
     saveAnnotations();
   }
 
+  function colorText(note: PageNote, color: string) {
+    pickingColor = false;
+    if ((note.color ?? TEXT_COLORS[0][0]) === color) return;
+    record();
+    note.color = color;
+    saveAnnotations();
+  }
+
   /** Runs `move` until the pointer is released; the whole gesture is one undo step, saved once. */
   function followPointer(move: (e: PointerEvent) => void) {
     let moved = false;
@@ -720,6 +740,7 @@
               aria-label="Note on page {index + 1}"
               style:--note-scale={effective}
               style:--note-size={note.size && `${note.size}px`}
+              style:--note-color={note.color}
               style:font-weight={note.bold ? "bold" : null}
               style:font-style={note.italic ? "italic" : null}
               style:text-decoration={note.underline ? "underline" : null}
@@ -832,6 +853,26 @@
     >
       <Icon name="add" />
     </button>
+    <div class="toolbar-separator"></div>
+    <!-- Only the current colour shows; clicking it slides the others out around it. -->
+    <div class="text-colors">
+      {#each TEXT_COLORS as [color, label] (color)}
+        {@const current = (note.color ?? TEXT_COLORS[0][0]) === color}
+        {#if current || pickingColor}
+          <button
+            class="swatch"
+            class:active={current && pickingColor}
+            style:background={color}
+            title={pickingColor ? label : "Text Colour"}
+            aria-label={pickingColor ? `${label} Text` : "Text Colour"}
+            aria-pressed={pickingColor ? current : undefined}
+            aria-expanded={current ? pickingColor : undefined}
+            onclick={() => (pickingColor ? colorText(note, color) : (pickingColor = true))}
+            transition:slide={{ axis: "x", duration: 180, easing: cubicOut }}
+          ></button>
+        {/if}
+      {/each}
+    </div>
   </div>
 {/if}
 

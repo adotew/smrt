@@ -26,6 +26,8 @@ export interface PageNote {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
+  /** A CSS colour; missing means black. */
+  color?: string;
 }
 /** Placed like a page note; `src` is a data URL so the image travels with the annotations file. */
 export interface PageImage {
