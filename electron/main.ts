@@ -19,6 +19,8 @@ const isMac = process.platform === "darwin";
 
 // Dev runs show "Electron" otherwise.
 app.setName("Smrt");
+// Dev runs keep their own data, so they never touch the real library and can run beside the installed app.
+if (process.env.SMRT_USER_DATA) app.setPath("userData", process.env.SMRT_USER_DATA);
 // A second copy would clear the first one's undo versions below.
 if (!app.requestSingleInstanceLock()) {
   console.error("Smrt is already running.");

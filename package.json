@@ -8,6 +8,7 @@
   "scripts": {
     "start": "npm run build && electron .",
     "dev": "node scripts/dev.ts",
+    "seed": "node scripts/seed.ts",
     "test": "node --test",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "build": "node scripts/electron.ts && vite build",
