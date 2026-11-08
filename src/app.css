@@ -189,8 +189,14 @@ main {
   padding: 0 2px;
 }
 
+/* The buttons belong to the sidebar, so they hide with it and the pill only frames the traffic lights. */
+#reader-controls.floating .icon-button,
+#reader-controls.floating:not(.windowed) {
+  display: none;
+}
+
 #reader-controls.floating.windowed {
-  padding-left: 82px;
+  padding-left: 72px;
 }
 
 #document {
