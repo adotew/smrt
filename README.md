@@ -66,12 +66,17 @@ builds the Svelte renderer into `dist/`, and launches Electron.
 | Undo / redo     | Command + Z / Shift + Command + Z | Ctrl + Z / Shift + Ctrl + Z |
 | Toggle sidebar  | Control + Command + S    | Ctrl + Shift + S      |
 | Toggle notes    | Command + Shift + N      | Ctrl + Shift + N      |
+| Split view      | Command + \              | Ctrl + \              |
 | Zoom in / out   | Command + = / −          | Ctrl + = / −          |
 | Actual size     | Command + 0              | Ctrl + 0              |
 | Zoom to fit     | Command + 9              | Ctrl + 9              |
 | Fullscreen      | Control + Command + F    | F11                   |
 
 You can also pinch to zoom on a trackpad.
+
+Right-click a file and choose **Open in Split View** to show it beside the current one. Drag the
+divider to resize the panes, or all the way to an edge to close one; the sidebar and menu commands
+act on the pane you last clicked.
 
 ## Package
 

@@ -4,12 +4,10 @@
   import { slide } from "svelte/transition";
   import { SvelteSet } from "svelte/reactivity";
   import type { Folder } from "../electron/library.ts";
-  import Deck from "./Deck.svelte";
   import EmptyState from "./EmptyState.svelte";
   import FileIcon from "./FileIcon.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
-  import MarkdownEditor from "./MarkdownEditor.svelte";
-  import Reader from "./Reader.svelte";
+  import Pane from "./Pane.svelte";
 
   const api = window.smrt;
 
@@ -22,15 +20,15 @@
   let expanded = new SvelteSet<string>();
   /** Folder used for imports. */
   let folderPath: string | null = $state(null);
-  /** The open PDF, markdown file or deck. */
-  let filePath: string | null = $state(null);
-  let showingNotes = $state(false);
-  let placingNote = $state(false);
+  /** One pane, or two side by side; each shows a PDF, markdown file or deck. */
+  let panes: { id: string; path: string | null }[] = $state([{ id: crypto.randomUUID(), path: null }]);
+  /** Index of the pane the sidebar and menu commands act on. */
+  let active = $state(0);
+  /** The left pane's share of the width in split view. */
+  let ratio = $state(0.5);
+  const views: Record<string, Pane | undefined> = {};
   let showingSidebar = $state(true);
   let fullscreen = $state(false);
-  let reader: Reader | undefined = $state();
-  let markdown: MarkdownEditor | undefined = $state();
-  let deck: Deck | undefined = $state();
 
   let promptDialog: HTMLDialogElement;
   let prompt = $state({ title: "", confirm: "", value: "" });
@@ -40,11 +38,12 @@
   // Leaves room for the traffic lights outside fullscreen.
   const windowed = $derived(api.platform === "darwin" && !fullscreen);
   const fileType = (path: string) => (/\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : "pdf");
-  const markdownPath = $derived(filePath && fileType(filePath) === "md" ? filePath : null);
-  const deckPath = $derived(filePath && fileType(filePath) === "cards" ? filePath : null);
-  const pdfPath = $derived(filePath && fileType(filePath) === "pdf" ? filePath : null);
+  const filePath = $derived(panes[active].path);
+  const view = () => views[panes[active].id];
+  // The toolbar pills sit over the left pane, so only its PDFs need their background.
+  const bare = $derived(!panes[0].path || fileType(panes[0].path) !== "pdf");
   /** Lets pending markdown and deck saves land before their file moves. */
-  const flushEditors = () => Promise.all([markdown?.flush(), deck?.flush()]);
+  const flushEditors = () => Promise.all(Object.values(views).map((v) => v?.flush()));
   /** Slides the list open while the files travel down from the folder, and back up on close. */
   function reveal(node: Element) {
     const { css } = slide(node, { duration: 200 });
@@ -70,13 +69,14 @@
     }
     const commands: Partial<Record<typeof command, () => void>> = {
       toggleSidebar: () => (showingSidebar = !showingSidebar),
-      toggleNotes: () => (showingNotes = !showingNotes),
-      zoomIn: () => reader?.zoomIn(),
-      zoomOut: () => reader?.zoomOut(),
-      zoomReset: () => reader?.zoom(1),
-      zoomFit: () => reader?.zoom(null),
-      undo: () => (markdownPath ? markdown?.undo() : reader?.undo()),
-      redo: () => (markdownPath ? markdown?.redo() : reader?.redo()),
+      toggleNotes: () => view()?.toggleNotes(),
+      toggleSplit: () => (panes.length > 1 ? closePane(active) : splitPane()),
+      zoomIn: () => view()?.zoomIn(),
+      zoomOut: () => view()?.zoomOut(),
+      zoomReset: () => view()?.zoom(1),
+      zoomFit: () => view()?.zoom(null),
+      undo: () => view()?.undo(),
+      redo: () => view()?.redo(),
     };
     commands[command]?.();
   });
@@ -140,39 +140,77 @@
     });
   }
 
-  function openFile(path: string) {
+  /** Opens `path` in the active pane, or in the other one with `beside`; a file already open just gets focus. */
+  function openFile(path: string, beside = false) {
     const parent = folders.find((f) => [...f.pdfs, ...f.markdown, ...f.decks].some((p) => p.path === path));
     folderPath = parent?.path ?? null;
     if (parent) expanded.add(parent.path);
-    filePath = path;
+    // Two panes on one file would overwrite each other's saves.
+    const open = panes.findIndex((p) => p.path === path);
+    if (open >= 0) {
+      active = open;
+      return;
+    }
+    if (beside) splitPane();
+    panes[active].path = path;
+  }
+
+  /** Focuses the other pane, adding an empty one on the right if there is only one. */
+  function splitPane() {
+    if (panes.length === 1) panes.push({ id: crypto.randomUUID(), path: null });
+    active = 1 - active;
+  }
+
+  function closePane(index: number) {
+    panes.splice(index, 1);
+    active = 0;
+    ratio = 0.5;
+  }
+
+  function resize(event: PointerEvent & { currentTarget: HTMLElement }) {
+    const divider = event.currentTarget;
+    const box = divider.parentElement!.getBoundingClientRect();
+    divider.setPointerCapture(event.pointerId);
+    divider.onpointermove = (e) => (ratio = Math.min(0.9, Math.max(0.1, (e.clientX - box.left) / box.width)));
+    // Dragging the divider to either edge closes the pane it squeezes, like in browsers.
+    divider.onpointerup = () => {
+      divider.onpointermove = null;
+      if (ratio <= 0.15) closePane(0);
+      else if (ratio >= 0.85) closePane(1);
+    };
   }
 
   async function fileMenu(file: File) {
     const choice = await api.contextMenu([
       ...(fileType(file.path) === "cards" ? [{ id: "edit", label: "Edit Cards" }] : []),
+      { id: "split", label: "Open in Split View" },
+      { type: "separator" as const },
       { id: "rename", label: "Rename…" },
       { id: "trash", label: "Move to Trash" },
     ]);
     if (choice === "edit") {
       openFile(file.path);
       await tick();
-      deck?.startEditing();
+      view()?.startEditing();
+    } else if (choice === "split") {
+      openFile(file.path, true);
     } else if (choice === "rename") {
       const titles = { md: "Rename Markdown File", cards: "Rename Deck", pdf: "Rename PDF" };
       const name = await ask(titles[fileType(file.path)], "Rename", baseName(file.name));
       if (name == null) return;
       await perform(async () => {
-        if (filePath === file.path) await flushEditors();
+        await flushEditors();
         const renamed = await api.renameFile(file.path, name);
-        if (filePath === file.path) filePath = renamed;
+        for (const pane of panes) if (pane.path === file.path) pane.path = renamed;
         await reload();
       });
     } else if (choice === "trash") {
       await perform(async () => {
         // Closing first lets pending saves land before the file moves, so they can't recreate it.
-        if (filePath === file.path) {
+        const showing = panes.filter((p) => p.path === file.path);
+        if (showing.length) {
           await flushEditors();
-          filePath = null;
+          for (const pane of showing) pane.path = null;
           await tick();
         }
         await api.trashFile(file.path);
@@ -215,11 +253,11 @@
 <main>
   <section id="reader">
     <div id="drag-strip"></div>
-    <div id="reader-controls" class:windowed class:floating={!showingSidebar} class:bare={!pdfPath}>
+    <div id="reader-controls" class:windowed class:floating={!showingSidebar} class:bare>
       {@render iconButton("newFolder", "New Folder", newFolder)}
       {@render iconButton("add", "Add to Folder", () => folderPath && folderMenu(folderPath), !folderPath)}
     </div>
-    <div id="sidebar-toggle" class:floating={!showingSidebar} class:bare={!pdfPath}>
+    <div id="sidebar-toggle" class:floating={!showingSidebar} class:bare>
       {@render iconButton("sidebar", showingSidebar ? "Hide Sidebar" : "Show Sidebar", () => (showingSidebar = !showingSidebar))}
     </div>
     <aside id="sidebar" class:hidden={!showingSidebar}>
@@ -262,34 +300,25 @@
         {/if}
     </aside>
     <div id="document">
-      <Reader
-        bind:this={reader}
-        path={pdfPath}
-        {showingNotes}
-        bind:placingNote
-        inset={showingSidebar ? SIDEBAR_INSET : 0}
-        onerror={showError}
-      />
-      {#if markdownPath}
-        {#key markdownPath}
-          <MarkdownEditor
-            bind:this={markdown}
-            path={markdownPath}
-            inset={showingSidebar ? SIDEBAR_INSET : 0}
+      {#each panes as pane, index (pane.id)}
+        {#if index > 0}
+          <div class="divider" role="separator" aria-orientation="vertical" onpointerdown={resize}></div>
+        {/if}
+        <div
+          class="pane"
+          style:flex="{panes.length > 1 ? (index === 0 ? ratio : 1 - ratio) : 1} 1 0"
+          onpointerdowncapture={() => (active = index)}
+        >
+          <Pane
+            bind:this={views[pane.id]}
+            path={pane.path}
+            active={index === active}
+            inset={index === 0 && showingSidebar ? SIDEBAR_INSET : 0}
             onerror={showError}
+            {iconButton}
           />
-        {/key}
-      {:else if deckPath}
-        {#key deckPath}
-          <Deck bind:this={deck} path={deckPath} inset={showingSidebar ? SIDEBAR_INSET : 0} onerror={showError} />
-        {/key}
-      {:else if pdfPath}
-        <div id="bottom-toolbar" class="floating" style:--inset="{showingSidebar ? SIDEBAR_INSET : 0}px">
-          {@render iconButton("notes", "Notes", () => (showingNotes = !showingNotes), false, showingNotes)}
-          {@render iconButton("pageNote", "Add Note to Page", () => (placingNote = !placingNote), false, placingNote)}
-          {@render iconButton("photo", "Add Image to Page", () => reader?.insertImage())}
         </div>
-      {/if}
+      {/each}
     </div>
   </section>
 </main>

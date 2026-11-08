@@ -11,10 +11,13 @@
 
   let {
     path,
+    active = true,
     inset = 0,
     onerror,
   }: {
     path: string;
+    /** Only the active pane's deck answers the keyboard. */
+    active?: boolean;
     /** Width on the left covered by the floating sidebar. */
     inset?: number;
     onerror: (error: unknown) => void;
@@ -104,7 +107,7 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (editing || !studying || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (!active || editing || !studying || event.metaKey || event.ctrlKey || event.altKey) return;
     if ((event.target as Element).closest("input, textarea, dialog")) return;
     if (event.key === " ") revealed = !revealed;
     else if (event.key === "ArrowRight") go(1);

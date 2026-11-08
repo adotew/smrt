@@ -10,6 +10,7 @@ export type Command =
   | "redo"
   | "toggleSidebar"
   | "toggleNotes"
+  | "toggleSplit"
   | "zoomReset"
   | "zoomIn"
   | "zoomOut"
@@ -122,6 +123,7 @@ function buildMenu(window: BrowserWindow) {
         submenu: [
           { label: "Toggle Sidebar", accelerator: isMac ? "Ctrl+Cmd+S" : "Ctrl+Shift+S", click: send("toggleSidebar") },
           { label: "Toggle Notes", accelerator: "CmdOrCtrl+Shift+N", click: send("toggleNotes") },
+          { label: "Toggle Split View", accelerator: "CmdOrCtrl+\\", click: send("toggleSplit") },
           { type: "separator" },
           { label: "Actual Size", accelerator: "CmdOrCtrl+0", click: send("zoomReset") },
           { label: "Zoom In", accelerator: "CmdOrCtrl+=", click: send("zoomIn") },

@@ -194,13 +194,34 @@ main {
 }
 
 #document {
-  position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
 }
 
-#bottom-toolbar {
+.pane {
+  position: relative;
+  min-width: 0;
+  display: flex;
+}
+
+/* A hairline with a wider grab area. */
+.divider {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  width: 1px;
+  background: var(--separator);
+  cursor: col-resize;
+}
+
+.divider::before {
+  content: "";
+  position: absolute;
+  inset: 0 -4px;
+}
+
+.bottom-toolbar {
   position: absolute;
   bottom: 12px;
   left: calc(50% + var(--inset, 0px) / 2);
@@ -350,7 +371,7 @@ main {
   transform: rotate(90deg);
 }
 
-#pages {
+.pages {
   flex: 1;
   min-width: 0;
   overflow: auto;
@@ -443,7 +464,7 @@ main {
   transform: scale(1.15);
 }
 
-#pages.placing .sheet {
+.pages.placing .sheet {
   cursor: crosshair;
 }
 

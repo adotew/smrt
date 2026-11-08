@@ -630,7 +630,7 @@
 <svelte:window {onkeydown} onbeforeunload={() => path && saveTyped.flush(path)} />
 
 <div
-  id="pages"
+  class="pages"
   class:placing={placingNote}
   role="document"
   bind:this={container}
