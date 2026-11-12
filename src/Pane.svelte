@@ -31,7 +31,7 @@
     /** Width on the left covered by the floating sidebar. */
     inset: number;
     onerror: (error: unknown) => void;
-    onopen: (path: string) => void;
+    onopen: (path: string, beside?: boolean) => void;
     onpin: () => void;
     iconButton: Snippet<[IconName, string, () => void, boolean?, boolean?]>;
   } = $props();

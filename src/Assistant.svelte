@@ -27,7 +27,8 @@
     context: string | null;
     active: boolean;
     inset?: number;
-    onopen: (path: string) => void;
+    /** Opens a file in this pane, or `beside` it. */
+    onopen: (path: string, beside?: boolean) => void;
     onpin?: () => void;
   } = $props();
 
@@ -67,6 +68,12 @@
           .sort((a, b) => b.score - a.score)
           .map(({ file }) => file),
   );
+  const recentFiles = $derived.by(() => {
+    const files = new Map(
+      assistant.library.flatMap((f) => [...f.pdfs, ...f.markdown, ...f.decks, ...f.html].map((file) => [file.path, { ...file, folder: f.name }])),
+    );
+    return assistant.recent.flatMap((path) => files.get(path) ?? []).slice(0, 6);
+  });
   // Highlights the best match as the query changes.
   $effect(() => {
     mentionValue = mentionMatches[0]?.path ?? "";
@@ -176,7 +183,7 @@
       <Button size="sm" onclick={() => chat.addToolApprovalResponse({ id: part.approval.id, approved: true })}>Allow</Button>
     </div>
   {:else if path && done}
-    <button class="w-fit max-w-full border-0 bg-transparent p-0 hover:[&>span]:text-foreground" onclick={() => onopen(path)} title="Open {fileName(path)}">
+    <button class="w-fit max-w-full border-0 bg-transparent p-0 hover:[&>span]:text-foreground" onclick={() => onopen(path, true)} title="Open {fileName(path)}">
       {@render statusLine(icon, title)}
     </button>
   {:else}
@@ -393,6 +400,23 @@
       <div class="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-8 px-6 pb-[12vh]">
         <h1 class="brand m-0 text-center text-[32px]">What are we learning today?</h1>
         {@render composer(true)}
+        {#if recentFiles.length}
+          <section class="flex flex-col gap-2 px-1">
+            <h2 class="m-0 px-2 text-xs font-medium text-muted-foreground">Recent</h2>
+            <div class="grid grid-cols-2 gap-1">
+              {#each recentFiles as file (file.path)}
+                <button
+                  class="flex min-w-0 items-center gap-2.5 rounded-xl border-0 bg-transparent px-2.5 py-2 text-left text-sm text-inherit hover:bg-(--hover)"
+                  onclick={() => onopen(file.path)}
+                >
+                  <FileIcon type={fileType(file.path)} size={18} />
+                  <span class="truncate">{baseName(file.path)}</span>
+                  <span class="ml-auto shrink-0 pl-2 text-xs text-muted-foreground">{file.folder}</span>
+                </button>
+              {/each}
+            </div>
+          </section>
+        {/if}
       </div>
     {/if}
   </div>

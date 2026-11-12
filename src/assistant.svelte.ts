@@ -15,6 +15,8 @@ export const assistant = $state({
   /** The file the next message is about. */
   context: null as string | null,
   library: [] as Folder[],
+  /** Recently opened files, newest first; may name files since moved or deleted. */
+  recent: JSON.parse(localStorage.getItem("recent") ?? "[]") as string[],
   /** How many times the assistant has written each file, so open copies reload. */
   edits: {} as Record<string, number>,
 });

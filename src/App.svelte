@@ -157,10 +157,17 @@
     const open = panes.findIndex((p) => p.path === path);
     if (open >= 0) {
       active = open;
+      remember([path, ...assistant.recent.filter((p) => p !== path)]);
       return;
     }
     if (beside) splitPane();
     panes[active].path = path;
+    remember([path, ...assistant.recent.filter((p) => p !== path)]);
+  }
+
+  function remember(recent: string[]) {
+    assistant.recent = recent.slice(0, 20);
+    localStorage.setItem("recent", JSON.stringify(assistant.recent));
   }
 
   /** Focuses the other pane, adding an empty one on the right if there is only one. */
@@ -223,6 +230,7 @@
         await flushEditors();
         const renamed = await api.renameFile(file.path, name);
         for (const pane of panes) if (pane.path === file.path) pane.path = renamed;
+        remember(assistant.recent.map((p) => (p === file.path ? renamed : p)));
         await reload();
       });
     } else if (choice === "trash") {
@@ -349,7 +357,7 @@
             active={index === active}
             inset={index === 0 && showingSidebar ? SIDEBAR_INSET : 0}
             onerror={showError}
-            onopen={(path) => openFile(path, true)}
+            onopen={openFile}
             onpin={pinAssistant}
             {iconButton}
           />
