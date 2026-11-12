@@ -307,7 +307,7 @@
     class="absolute right-3 bottom-3 z-[3] flex max-h-[min(640px,calc(100%-24px))] w-[400px] max-w-[calc(100%-24px)] origin-bottom-right flex-col overflow-hidden rounded-[calc(var(--radius-3xl)+12px)] bg-(--background) text-(--foreground) shadow-[0_0_0_0.5px_var(--separator),0_8px_32px_rgb(0_0_0/0.2)]"
     transition:scale={{ start: 0.92, duration: 180, easing: cubicOut }}
   >
-    <div class="flex h-11 shrink-0 items-center gap-1 pr-1.5 pl-3.5">
+    <div class="flex h-12 shrink-0 items-center gap-1 pt-1 pr-3.5 pl-5">
       <span class="text-muted-foreground"><Icon name="sparkles" size={16} /></span>
       <span class="mr-auto text-sm font-medium">Assistant</span>
       {#if chat.messages.length > 0}
@@ -318,7 +318,7 @@
           <Icon name="sidebar" />
         </Button>
       {/if}
-      <Button variant="ghost" size="icon-sm" title="Close (Esc)" aria-label="Close" onclick={() => (open = false)}><Icon name="close" /></Button>
+      <Button variant="ghost" size="icon-sm" title="Close (Esc)" aria-label="Close" onclick={() => (open = false)}><Icon name="chevronDown" /></Button>
     </div>
     {#if chat.messages.length > 0}
       {@render thread(true)}
