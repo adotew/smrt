@@ -355,6 +355,10 @@ main {
   padding-left: 24px;
 }
 
+#sidebar .row:hover {
+  background: var(--hover);
+}
+
 #sidebar .row.selected {
   background: var(--selection);
 }
