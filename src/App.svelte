@@ -175,6 +175,13 @@
     panes[active].path = null;
   }
 
+  /** Shows the assistant's start page, focusing a pane that already shows it. */
+  function goHome() {
+    const home = panes.findIndex((p) => !p.path);
+    if (home >= 0) active = home;
+    else panes[active].path = null;
+  }
+
   function closePane(index: number) {
     panes.splice(index, 1);
     active = 0;
@@ -278,6 +285,7 @@
   <section id="reader">
     <div id="drag-strip"></div>
     <div id="reader-controls" class:windowed class:floating={!showingSidebar} class:bare>
+      {@render iconButton("home", "Home", goHome)}
       {@render iconButton("newFolder", "New Folder", newFolder)}
       {@render iconButton("add", "Add to Folder", () => folderPath && folderMenu(folderPath), !folderPath)}
     </div>
