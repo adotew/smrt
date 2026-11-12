@@ -5,7 +5,9 @@
   import { getToolName, isToolUIPart, type UIMessage } from "ai";
   import { Streamdown } from "svelte-streamdown";
   import { Button } from "$lib/components/ui/button";
+  import * as Command from "$lib/components/ui/command";
   import * as MessageScroller from "$lib/components/ui/message-scroller";
+  import { computeCommandScore, type Command as CommandPrimitive } from "bits-ui";
   import { assistant, chat, models } from "./assistant.svelte.ts";
   import { contextMenu } from "./ContextMenu.svelte";
   import FileIcon from "./FileIcon.svelte";
@@ -39,13 +41,36 @@
   let copied: string | null = $state(null);
   /** The person's choice for each reasoning line; until they click, it follows the stream. */
   let reasoningOpen: Record<string, boolean> = $state({});
+  /** Files picked with @ for the draft. */
+  let mentions: string[] = $state([]);
+  /** The word after @ at the caret, while picking a file. */
+  let mentionQuery: string | null = $state(null);
+  let mentionList: CommandPrimitive.Root | null = $state(null);
+  /** The highlighted file's path. */
+  let mentionValue = $state("");
 
   const streaming = $derived(chat.status === "submitted" || chat.status === "streaming");
   const fileName = (path: string) => path.split(/[\\/]/).pop()!;
   const baseName = (path: string) => fileName(path).replace(/\.(pdf|md|cards|html)$/i, "");
   const fileType = (path: string) =>
     /\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : /\.html$/i.test(path) ? "html" : "pdf";
+  const filesOf = (message: UIMessage) => (message.metadata as { files?: string[] } | undefined)?.files ?? [];
   const textOf = (message: UIMessage) => message.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
+  const mentionMatches = $derived(
+    mentionQuery == null
+      ? []
+      : assistant.library
+          .flatMap((f) => [...f.pdfs, ...f.markdown, ...f.decks, ...f.html].map((file) => ({ ...file, folder: f.name })))
+          .filter((file) => !mentions.includes(file.path))
+          .map((file) => ({ file, score: computeCommandScore(baseName(file.path), mentionQuery!, [file.folder]) }))
+          .filter(({ score }) => score > 0)
+          .sort((a, b) => b.score - a.score)
+          .map(({ file }) => file),
+  );
+  // Highlights the best match as the query changes.
+  $effect(() => {
+    mentionValue = mentionMatches[0]?.path ?? "";
+  });
   const toolIcons: Record<string, IconName> = {
     Read: "document",
     Glob: "library",
@@ -57,9 +82,12 @@
   async function send(text: string) {
     if (!text.trim() || streaming) return;
     assistant.context = attach ? context : null;
+    const files = [...(assistant.context ? [assistant.context] : []), ...mentions.filter((m) => m !== assistant.context)];
     draft = "";
+    mentions = [];
+    mentionQuery = null;
     open = true;
-    await chat.sendMessage({ text });
+    await chat.sendMessage({ text, metadata: { files } });
   }
 
   async function focus() {
@@ -73,6 +101,24 @@
     chat.messages = [];
     reasoningOpen = {};
     focus();
+  }
+
+  function findMention() {
+    // Reads the field, as this can run before the binding updates `draft`.
+    const match = field && /(?:^|\s)@([^\s@]*)$/.exec(field.value.slice(0, field.selectionStart));
+    mentionQuery = match ? match[1] : null;
+  }
+
+  async function mention(path: string) {
+    if (!field) return;
+    const caret = field.selectionStart;
+    const start = draft.lastIndexOf("@", caret - 1);
+    draft = draft.slice(0, start) + draft.slice(caret);
+    mentions.push(path);
+    mentionQuery = null;
+    await tick();
+    field.selectionStart = field.selectionEnd = start;
+    field.focus();
   }
 
   async function pickModel() {
@@ -169,6 +215,11 @@
             {@const live = streaming && index === chat.messages.length - 1}
             <MessageScroller.Item messageId={message.id} scrollAnchor={message.role === "user"}>
               {#if message.role === "user"}
+                {#if filesOf(message).length}
+                  <div class="mb-1.5 ml-auto flex w-fit max-w-[80%] flex-wrap justify-end gap-1.5 [&>span]:bg-muted">
+                    {#each filesOf(message) as path (path)}{@render fileChip(path)}{/each}
+                  </div>
+                {/if}
                 <div
                   class="ml-auto w-fit max-w-[80%] rounded-xl bg-muted px-3 py-2 leading-relaxed wrap-break-word whitespace-pre-wrap select-text
                     {compact ? 'text-sm' : 'text-[15px]'}"
@@ -228,45 +279,88 @@
   </MessageScroller.Provider>
 {/snippet}
 
+{#snippet fileChip(path: string, onremove?: () => void)}
+  <span class="inline-flex h-6 max-w-full items-center gap-1.5 rounded-md bg-(--background) pl-1.5 text-xs {onremove ? 'pr-0.5' : 'pr-2'}">
+    <FileIcon type={fileType(path)} size={14} />
+    <span class="truncate">{baseName(path)}</span>
+    {#if onremove}
+      <Button variant="ghost" size="icon-xs" class="size-5" aria-label="Don't include {baseName(path)}" onclick={onremove}>
+        <Icon name="close" />
+      </Button>
+    {/if}
+  </span>
+{/snippet}
+
 {#snippet composer(large: boolean)}
   <form
-    class="flex flex-col rounded-3xl bg-(--hover)"
+    class="relative flex flex-col rounded-3xl bg-(--hover)"
     onsubmit={(event) => {
       event.preventDefault();
       send(draft);
     }}
   >
-    {#if context}
-      <div class="px-2.5 pt-2.5">
-        {#if attach}
-          <span class="inline-flex h-6 max-w-full items-center gap-1.5 rounded-md bg-(--background) pr-0.5 pl-1.5 text-xs">
-            <FileIcon type={fileType(context)} size={14} />
-            <span class="truncate">{baseName(context)}</span>
-            <Button variant="ghost" size="icon-xs" class="size-5" aria-label="Don't include this file" onclick={() => (attach = false)}>
-              <Icon name="close" />
-            </Button>
-          </span>
-        {:else}
+    {#if context || mentions.length}
+      <div class="flex flex-wrap gap-1.5 px-2.5 pt-2.5">
+        {#if context && attach}
+          {@render fileChip(context, () => (attach = false))}
+        {:else if context}
           <Button variant="ghost" size="xs" class="text-muted-foreground" onclick={() => (attach = true)}>
             <Icon name="add" /> {baseName(context)}
           </Button>
         {/if}
+        {#each mentions.filter((m) => m !== context || !attach) as path (path)}
+          {@render fileChip(path, () => mentions.splice(mentions.indexOf(path), 1))}
+        {/each}
       </div>
     {/if}
     <textarea
       bind:this={field}
       bind:value={draft}
       rows={1}
-      placeholder={context && attach ? `Ask about ${baseName(context)}…` : "Ask anything, or describe what to make…"}
+      placeholder={context && attach ? `Ask about ${baseName(context)}. @ files` : "Ask anything. @ files"}
       class="field-sizing-content m-0 max-h-48 resize-none border-0 bg-transparent px-3.5 font-[inherit] text-inherit outline-none placeholder:text-muted-foreground
         {large ? 'min-h-28 pt-4 pb-2' : 'pt-3 pb-1'} {mode === 'page' ? 'text-base' : 'text-sm'}"
+      oninput={findMention}
+      onclick={findMention}
+      onblur={() => (mentionQuery = null)}
       onkeydown={(event) => {
+        if (mentionMatches.length && !event.isComposing) {
+          const step = { ArrowDown: 1, ArrowUp: -1 }[event.key];
+          if (step) mentionList?.updateSelectedByItem(step);
+          else if ((event.key === "Enter" || event.key === "Tab") && mentionValue) mention(mentionValue);
+          else if (event.key === "Escape") mentionQuery = null;
+          else return;
+          event.preventDefault();
+          return;
+        }
         if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
           event.preventDefault();
           send(draft);
         }
       }}
     ></textarea>
+    {#if mentionMatches.length}
+      <Command.Root
+        bind:api={mentionList}
+        bind:value={mentionValue}
+        shouldFilter={false}
+        loop
+        label="Files"
+        class="absolute left-0 z-10 h-auto w-max max-w-full min-w-64 rounded-2xl! bg-(--background) p-1.5 text-(--foreground) shadow-[0_0_0_0.5px_var(--separator),0_8px_32px_rgb(0_0_0/0.2)]
+          {large ? 'top-full mt-2' : 'bottom-full mb-2'}"
+      >
+        <!-- Keeps focus in the textarea, which drives the list. -->
+        <Command.List onpointerdown={(event: PointerEvent) => event.preventDefault()}>
+          {#each mentionMatches as file (file.path)}
+            <Command.Item value={file.path} class="rounded-lg data-selected:bg-(--hover)" onSelect={() => mention(file.path)}>
+              <FileIcon type={fileType(file.path)} size={16} />
+              <span class="truncate">{baseName(file.path)}</span>
+              <span class="ml-auto shrink-0 pl-3 text-xs text-muted-foreground">{file.folder}</span>
+            </Command.Item>
+          {/each}
+        </Command.List>
+      </Command.Root>
+    {/if}
     <div class="flex items-center gap-1 px-2.5 pb-2">
       <Button
         variant="ghost"
@@ -304,7 +398,7 @@
   </div>
 {:else if open}
   <div
-    class="absolute right-3 bottom-3 z-[3] flex max-h-[min(640px,calc(100%-24px))] w-[400px] max-w-[calc(100%-24px)] origin-bottom-right flex-col overflow-hidden rounded-[calc(var(--radius-3xl)+12px)] bg-(--background) text-(--foreground) shadow-[0_0_0_0.5px_var(--separator),0_8px_32px_rgb(0_0_0/0.2)]"
+    class="absolute right-3 bottom-3 z-[3] flex max-h-[min(640px,calc(100%-24px))] w-[400px] max-w-[calc(100%-24px)] origin-bottom-right flex-col rounded-[calc(var(--radius-3xl)+12px)] bg-(--background) text-(--foreground) shadow-[0_0_0_0.5px_var(--separator),0_8px_32px_rgb(0_0_0/0.2)]"
     transition:scale={{ start: 0.92, duration: 180, easing: cubicOut }}
   >
     <div class="flex h-12 shrink-0 items-center gap-1 pt-1 pr-3.5 pl-5">

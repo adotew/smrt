@@ -68,8 +68,9 @@ const transport: ChatTransport<UIMessage> = {
       return stream;
     }
     const stream = listen(abortSignal);
+    const mentions = ((last?.metadata as { files?: string[] } | undefined)?.files ?? []).filter((f) => f !== assistant.context);
     await api.askAssistant({
-      text: textOf(last),
+      text: mentions.length ? `${textOf(last)}\n\nFiles mentioned with @:\n${mentions.join("\n")}` : textOf(last),
       context: assistant.context,
       model: assistant.model,
       fresh: messages.filter((m) => m.role === "user").length === 1,
