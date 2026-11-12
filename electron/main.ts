@@ -13,6 +13,8 @@ import {
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import htmlGuide from "../docs/html-pages.md";
+import { createAssistant } from "./assistant.ts";
 import { createLibrary, withPageStyle } from "./library.ts";
 import pageStyle from "./page.css";
 import { newerRelease } from "./updates.ts";
@@ -109,7 +111,7 @@ function openSettings() {
   if (settingsWindow) return settingsWindow.focus();
   settingsWindow = new BrowserWindow({
     width: 420,
-    height: 160,
+    height: 240,
     resizable: false,
     minimizable: false,
     maximizable: false,
@@ -205,8 +207,15 @@ function buildMenu(window: BrowserWindow) {
 /** Everything the renderer may invoke; preload.ts exposes these as `window.smrt`. */
 function createHandlers(window: BrowserWindow) {
   const { inLibrary: _inLibrary, urlFile: _urlFile, ...exposed } = library;
+  const assistant = createAssistant(libraryPath, htmlGuide, (chunk) => window.webContents.send("assistant", chunk));
   return {
     ...exposed,
+    askAssistant: assistant.ask,
+    answerAssistant: assistant.answer,
+    stopAssistant: assistant.stop,
+    readAccount: assistant.account,
+    signIn: assistant.signIn,
+    enterSignInCode: assistant.enterSignInCode,
     importPDF: (folder: string) => importPDF(window, folder),
     readTheme,
     setTheme,

@@ -5,6 +5,7 @@
 @import "tw-animate-css";
 @import "shadcn-svelte/tailwind.css";
 @import "./app.css" layer(app);
+@source "../node_modules/svelte-streamdown/dist";
 
 @custom-variant dark (@media (prefers-color-scheme: dark));
 
@@ -126,5 +127,7 @@
 	}
 	button[data-slot] {
 		background: none;
+		border: 0 solid;
+		padding: 0;
 	}
 }

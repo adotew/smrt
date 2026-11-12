@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import type { UIMessageChunk } from "ai";
 import type { Command, Handlers } from "./main.ts";
 
 /** `window.smrt`: each handler in main.ts, invoked over IPC. */
@@ -8,6 +9,7 @@ export type SmrtApi = {
   platform: NodeJS.Platform;
   on(channel: "fullscreen", listener: (value: boolean) => void): void;
   on(channel: "command", listener: (value: Command) => void): void;
+  on(channel: "assistant", listener: (value: UIMessageChunk) => void): void;
 };
 
 // A record, so leaving out or misspelling a handler is a type error.
@@ -34,6 +36,12 @@ const channels: Record<keyof Handlers, true> = {
   restoreVersion: true,
   readTheme: true,
   setTheme: true,
+  askAssistant: true,
+  answerAssistant: true,
+  stopAssistant: true,
+  readAccount: true,
+  signIn: true,
+  enterSignInCode: true,
 };
 
 contextBridge.exposeInMainWorld("smrt", {

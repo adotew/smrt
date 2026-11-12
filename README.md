@@ -35,6 +35,11 @@ a new window go to your browser. Pages take on Smrt's fonts and colours, in ligh
 unless they style themselves; [docs/html-pages.md](docs/html-pages.md) explains how to write pages,
 for people and AI agents alike.
 
+Press ⌘J to ask the assistant about the open file or your library. It is Claude, running on your
+own Claude subscription through the Claude Agent SDK: sign in under **Settings → Claude**. It can read
+anything in the library and create notes, flashcard decks and HTML pages; it asks before changing a file
+that already exists, and can't touch anything outside the library.
+
 On first launch, an existing library from the old macpdf app is copied over; the
 original folder is left as it was.
 

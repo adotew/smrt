@@ -801,12 +801,6 @@
         </label>
       {/if}
     </div>
-  {:else}
-    {#if !path}
-      <div class="empty">
-        <div class="brand">Smrt</div>
-      </div>
-    {/if}
   {/each}
 </div>
 

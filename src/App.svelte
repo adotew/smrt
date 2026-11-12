@@ -8,6 +8,7 @@
   import EmptyState from "./EmptyState.svelte";
   import FileIcon from "./FileIcon.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
+  import { assistant } from "./assistant.svelte.ts";
   import Pane from "./Pane.svelte";
 
   const api = window.smrt;
@@ -60,6 +61,10 @@
   const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
 
   onMount(() => perform(reload));
+  // Lists the files the assistant creates.
+  $effect(() => {
+    if (Object.keys(assistant.edits).length) perform(reload);
+  });
 
   api.on("fullscreen", (value) => (fullscreen = value));
   api.on("command", (command) => {
@@ -109,6 +114,7 @@
 
   async function reload() {
     folders = await api.listLibrary();
+    assistant.library = folders;
   }
 
   async function newFolder() {
@@ -161,6 +167,12 @@
   function splitPane() {
     if (panes.length === 1) panes.push({ id: crypto.randomUUID(), path: null });
     active = 1 - active;
+  }
+
+  /** Gives the assistant the other pane, so it sits beside the file it was asked about. */
+  function pinAssistant() {
+    splitPane();
+    panes[active].path = null;
   }
 
   function closePane(index: number) {
@@ -324,9 +336,13 @@
           <Pane
             bind:this={views[pane.id]}
             path={pane.path}
+            context={pane.path ?? panes.find((p) => p.path)?.path ?? null}
+            docked={panes.every((p) => p.path)}
             active={index === active}
             inset={index === 0 && showingSidebar ? SIDEBAR_INSET : 0}
             onerror={showError}
+            onopen={(path) => openFile(path, true)}
+            onpin={pinAssistant}
             {iconButton}
           />
         </div>

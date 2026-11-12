@@ -1,5 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import Assistant from "./Assistant.svelte";
+  import { assistant } from "./assistant.svelte.ts";
   import { cubicOut } from "svelte/easing";
   import { scale } from "svelte/transition";
   import Deck from "./Deck.svelte";
@@ -12,15 +14,25 @@
     path,
     active,
     inset,
+    context,
+    docked,
     onerror,
+    onopen,
+    onpin,
     iconButton,
   }: {
     path: string | null;
+    /** The file the assistant looks at: this pane's, or the one beside an empty pane. */
+    context: string | null;
+    /** Whether an open file gets the floating assistant; off while the chat has a pane of its own. */
+    docked: boolean;
     /** The pane the sidebar and menu commands act on. */
     active: boolean;
     /** Width on the left covered by the floating sidebar. */
     inset: number;
     onerror: (error: unknown) => void;
+    onopen: (path: string) => void;
+    onpin: () => void;
     iconButton: Snippet<[IconName, string, () => void, boolean?, boolean?]>;
   } = $props();
 
@@ -51,15 +63,18 @@
 
 <Reader bind:this={reader} path={pdfPath} {showingNotes} bind:placingNote bind:editingText {inset} {onerror} />
 {#if markdownPath}
-  {#key markdownPath}
+  <!-- Reloads once the assistant writes the file. -->
+  {#key `${markdownPath}#${assistant.edits[markdownPath] ?? 0}`}
     <MarkdownEditor bind:this={markdown} path={markdownPath} {inset} {onerror} />
   {/key}
 {:else if deckPath}
-  {#key deckPath}
+  {#key `${deckPath}#${assistant.edits[deckPath] ?? 0}`}
     <Deck bind:this={deck} path={deckPath} {active} {inset} {onerror} />
   {/key}
 {:else if htmlPath}
-  <Html path={htmlPath} {inset} />
+  {#key `${htmlPath}#${assistant.edits[htmlPath] ?? 0}`}
+    <Html path={htmlPath} {inset} />
+  {/key}
 {:else if pdfPath && !editingText}
   <!-- Swaps in place with the text formatting bar, which grows in the same way. -->
   <div class="bottom-toolbar floating" style:--inset="{inset}px" transition:scale={{ start: 0.9, duration: 180, easing: cubicOut }}>
@@ -67,4 +82,9 @@
     {@render iconButton("pageNote", "Add Note to Page", () => (placingNote = !placingNote), false, placingNote)}
     {@render iconButton("photo", "Add Image to Page", () => reader?.insertImage())}
   </div>
+{/if}
+{#if !path}
+  <Assistant mode="page" {context} {active} {inset} {onopen} />
+{:else if docked}
+  <Assistant mode="dock" {context} {active} {onopen} {onpin} />
 {/if}

@@ -12,7 +12,7 @@
     "test": "node --test",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "build": "node scripts/electron.ts && vite build",
-    "package": "npm run build && electron-packager . Smrt --out=release --overwrite --icon=assets/Smrt --ignore=\"^/(assets|src|electron|scripts|release|vite\\.config\\.ts|tsconfig\\.json|index\\.html)\"",
+    "package": "npm run build && electron-packager . Smrt --out=release --overwrite --icon=assets/Smrt --ignore=\"^/(assets|src|electron|scripts|release|vite\\.config\\.ts|tsconfig\\.json|index\\.html)\" --asar.unpack=\"**/{.**,**}/**/*.node\" --asar.unpackDir=\"node_modules/@anthropic-ai/claude-agent-sdk-*\"",
     "dmg": "npm run package -- --arch=arm64 --osx-sign && node scripts/dmg.ts"
   },
   "license": "ISC",
@@ -20,6 +20,7 @@
   "devDependencies": {
     "@electron/packager": "^20.3.0",
     "@internationalized/date": "^3.12.4",
+    "@shadcn-svelte/primitives": "^0.0.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tailwindcss/vite": "^4.3.4",
     "@types/node": "^22.20.5",
@@ -37,6 +38,9 @@
     "vite": "^8.3.5"
   },
   "dependencies": {
+    "@ai-sdk/svelte": "^5.0.166",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.322",
+    "@shadcn/helpers": "^0.3.0",
     "@tiptap/core": "^3.32.2",
     "@tiptap/extension-bubble-menu": "^3.32.2",
     "@tiptap/extension-details": "^3.32.2",
@@ -47,7 +51,9 @@
     "@tiptap/pm": "^3.32.2",
     "@tiptap/starter-kit": "^3.32.2",
     "@tiptap/suggestion": "^3.32.2",
+    "ai": "^7.0.166",
     "pdf-lib": "^1.17.1",
-    "pdfjs-dist": "^6.5.438"
+    "pdfjs-dist": "^6.5.438",
+    "svelte-streamdown": "^5.1.1"
   }
 }

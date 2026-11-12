@@ -1067,7 +1067,9 @@ dialog .primary {
 }
 
 .context-menu button {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   width: 100%;
   padding: 3px 10px;
   border: 0;

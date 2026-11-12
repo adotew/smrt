@@ -1,5 +1,7 @@
 <script module lang="ts">
-  export type MenuItem = { id: string; label: string } | { type: "separator" };
+  import Icon, { type IconName } from "./Icon.svelte";
+
+  export type MenuItem = { id: string; label: string; icon?: IconName } | { type: "separator" };
 
   let menu: { items: MenuItem[]; x: number; y: number; resolve: (id: string | null) => void } | null = $state(null);
   let pointer = { x: 0, y: 0 };
@@ -58,6 +60,7 @@
         <hr />
       {:else}
         <button role="menuitem" tabindex="-1" onclick={() => close(item.id)} onpointerenter={(e) => e.currentTarget.focus()}>
+          {#if item.icon}<Icon name={item.icon} size={14} />{/if}
           {item.label}
         </button>
       {/if}
