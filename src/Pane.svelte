@@ -8,6 +8,7 @@
   import Html from "./Html.svelte";
   import type { IconName } from "./Icon.svelte";
   import MarkdownEditor from "./MarkdownEditor.svelte";
+  import QuizFile from "./QuizFile.svelte";
   import Reader from "./Reader.svelte";
 
   let {
@@ -44,9 +45,10 @@
   let deck: Deck | undefined = $state();
 
   const fileType = (path: string) =>
-    /\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : /\.html$/i.test(path) ? "html" : "pdf";
+    /\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : /\.quiz$/i.test(path) ? "quiz" : /\.html$/i.test(path) ? "html" : "pdf";
   const markdownPath = $derived(path && fileType(path) === "md" ? path : null);
   const deckPath = $derived(path && fileType(path) === "cards" ? path : null);
+  const quizPath = $derived(path && fileType(path) === "quiz" ? path : null);
   const htmlPath = $derived(path && fileType(path) === "html" ? path : null);
   const pdfPath = $derived(path && fileType(path) === "pdf" ? path : null);
 
@@ -70,6 +72,10 @@
 {:else if deckPath}
   {#key `${deckPath}#${assistant.edits[deckPath] ?? 0}`}
     <Deck bind:this={deck} path={deckPath} {active} {inset} {onerror} />
+  {/key}
+{:else if quizPath}
+  {#key `${quizPath}#${assistant.edits[quizPath] ?? 0}`}
+    <QuizFile path={quizPath} {inset} {onerror} />
   {/key}
 {:else if htmlPath}
   {#key `${htmlPath}#${assistant.edits[htmlPath] ?? 0}`}

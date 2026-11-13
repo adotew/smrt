@@ -75,6 +75,7 @@ export interface Folder {
   pdfs: { name: string; path: string }[];
   markdown: { name: string; path: string }[];
   decks: { name: string; path: string }[];
+  quizzes: { name: string; path: string }[];
   html: { name: string; path: string }[];
 }
 
@@ -92,7 +93,7 @@ export function withPageStyle(html: string) {
 const turnRect = ([x, y, w, h]: Rect, turn: 90 | -90): Rect =>
   turn === 90 ? [1 - y - h, x, h, w] : [y, 1 - x - w, h, w];
 
-/** Folders of PDFs, markdown files, flashcard decks and HTML pages under `libraryPath`; PDFs may have sidecar files next to them. */
+/** Folders of PDFs, markdown files, flashcard decks, quizzes and HTML pages under `libraryPath`; PDFs may have sidecar files next to them. */
 export function createLibrary(
   libraryPath: string,
   { trash, versionsPath }: { trash: (file: string) => Promise<unknown>; versionsPath: string },
@@ -148,6 +149,7 @@ export function createLibrary(
           pdfs: withExtension(".pdf"),
           markdown: withExtension(".md"),
           decks: withExtension(".cards"),
+          quizzes: withExtension(".quiz"),
           html: withExtension(".html"),
         };
       });
@@ -227,6 +229,12 @@ export function createLibrary(
   function deckFile(file: string) {
     file = inLibrary(file);
     if (!/\.cards$/i.test(file)) throw new Error("That isn't a flashcard deck.");
+    return file;
+  }
+
+  function quizFile(file: string) {
+    file = inLibrary(file);
+    if (!/\.quiz$/i.test(file)) throw new Error("That isn't a quiz.");
     return file;
   }
 
@@ -438,6 +446,8 @@ export function createLibrary(
     createDeck: (folder: string, name: string) => createFile(folder, name, ".cards", JSON.stringify({ cards: [] })),
     readDeck,
     saveDeck,
+    /** The text as written; the renderer checks it with `parseQuiz`. */
+    readQuiz: (file: string) => fs.promises.readFile(quizFile(file), "utf8"),
     readPDF: (pdf: string) => fs.promises.readFile(inLibrary(pdf)),
     readNotes,
     saveNotes,

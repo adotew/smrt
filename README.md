@@ -29,6 +29,10 @@ Choose **New Flashcard Deck…** on a folder to make a `.cards` file. A deck ope
 press Space to flip a card and ← → to move between cards. Right-click a deck and choose
 **Edit Cards** to add or change cards; both sides are written in markdown.
 
+Ask the assistant to quiz you and the questions appear in the chat, one at a time: multiple choice,
+true or false, and fill in the blank. Ask it to keep the quiz and it is saved as a `.quiz` file that
+opens the same way.
+
 `.html` files placed in a folder open as interactive pages. Their scripts run in a sandbox
 without access to the library, relative links to files beside them work, and links that open
 a new window go to your browser. Pages take on Smrt's fonts and colours, in light and dark mode,
@@ -37,7 +41,7 @@ for people and AI agents alike.
 
 Press ⌘J to ask the assistant about the open file or your library. It is Claude, running on your
 own Claude subscription through the Claude Agent SDK: sign in under **Settings → Claude**. It can read
-anything in the library and create notes, flashcard decks and HTML pages; it asks before changing a file
+anything in the library and create notes, flashcard decks, quizzes and HTML pages; it asks before changing a file
 that already exists, and can't touch anything outside the library.
 
 On first launch, an existing library from the old macpdf app is copied over; the

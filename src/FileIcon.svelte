@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from "./Icon.svelte";
 
-  let { type, size = 20 }: { type: "pdf" | "md" | "cards" | "html"; size?: number } = $props();
+  let { type, size = 20 }: { type: "pdf" | "md" | "cards" | "quiz" | "html"; size?: number } = $props();
 </script>
 
 <!-- Markdown: JetBrains IntelliJ Platform icon (Apache-2.0). PDF: Phosphor "file-pdf" (MIT), tinted to match. -->
@@ -15,6 +15,8 @@
   <span class="file-icon html"><Icon name="code" {size} /></span>
 {:else if type === "cards"}
   <span class="file-icon cards"><Icon name="cards" {size} /></span>
+{:else if type === "quiz"}
+  <span class="file-icon quiz"><Icon name="checklist" {size} /></span>
 {:else}
   <svg class="file-icon md" viewBox="0 0 16 16" width={size} height={size} aria-hidden="true">
     <path
@@ -46,6 +48,10 @@
   .cards {
     display: grid;
     color: #d9922e;
+  }
+  .quiz {
+    display: grid;
+    color: #8b6fd9;
   }
   @media (prefers-color-scheme: dark) {
     .pdf {

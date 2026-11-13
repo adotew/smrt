@@ -120,11 +120,16 @@ export function createConverter(exists: (file: string) => boolean) {
 export function createAssistant(libraryPath: string, guide: string, send: (chunk: UIMessageChunk) => void) {
   const systemPrompt = `You are the assistant in Smrt, a PDF library and reader. Answer briefly, in markdown.
 
-The working directory is the person's library. Each folder in it holds PDFs, markdown notes (.md), flashcard decks (.cards) and interactive HTML pages (.html). Paths given to you are absolute.
+The working directory is the person's library. Each folder in it holds PDFs, markdown notes (.md), flashcard decks (.cards), quizzes (.quiz) and interactive HTML pages (.html). Paths given to you are absolute.
 
 - Read a file before answering questions about it.
-- Only write .md, .cards and .html files. A PDF's .notes.json, .annotations.json and .position.json files belong to Smrt.
+- Only write .md, .cards, .quiz and .html files. A PDF's .notes.json, .annotations.json and .position.json files belong to Smrt.
 - A .cards file is JSON: {"cards": [{"id": "<a new UUID>", "front": "<markdown>", "back": "<markdown>"}]}.
+- A quiz is JSON: {"title": "<short>", "questions": [...]}. Every question has a "prompt" and may have an "explanation", both markdown, and is one of:
+  {"type": "choice", "choices": ["<markdown>", ...], "answer": <index of the right choice, or a list of indexes when several are right>}
+  {"type": "truefalse", "answer": true}
+  {"type": "blank", "answer": ["<an accepted answer>", "<another spelling>"]}, where the person types a word or two
+- To quiz or test the person, put that JSON in your reply in a \`\`\`quiz code block, which Smrt shows as an interactive quiz, instead of writing the questions out or making an HTML page. Mix the question types, and don't give the answers away around the block. Write it to a .quiz file only when they ask to keep it.
 - New files go in the folder the person is working in, or the one they name.
 
 ${guide}`;
@@ -165,8 +170,8 @@ ${guide}`;
       const file = String(input.file_path ?? input.path ?? ".");
       if (!inLibrary(file)) return { behavior: "deny", message: "Only files in the library can be used." };
       if (tool === "Write" || tool === "Edit") {
-        if (!/\.(md|cards|html)$/i.test(file)) {
-          return { behavior: "deny", message: "Only markdown files, flashcard decks and HTML pages can be written." };
+        if (!/\.(md|cards|quiz|html)$/i.test(file)) {
+          return { behavior: "deny", message: "Only markdown files, flashcard decks, quizzes and HTML pages can be written." };
         }
         // New files are harmless; changing one needs the person's go-ahead.
         if (tool === "Edit" || fs.existsSync(path.resolve(libraryPath, file))) {

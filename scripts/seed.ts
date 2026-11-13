@@ -107,6 +107,17 @@ export async function seed(root: string) {
     } satisfies Deck),
   );
   write("Notes/Empty Deck.cards", json({ cards: [] } satisfies Deck));
+  write(
+    "Notes/Spanish.quiz",
+    json({
+      questions: [
+        { type: "choice", prompt: "What does **gracias** mean?", choices: ["Please", "Thank you", "Sorry"], answer: 1 },
+        { type: "choice", prompt: "Which of these are greetings?", choices: ["Hola", "Adiós", "Buenos días"], answer: [0, 2], explanation: "*Adiós* means goodbye." },
+        { type: "truefalse", prompt: "*El gato* means the dog.", answer: false, explanation: "It means the cat; the dog is *el perro*." },
+        { type: "blank", prompt: "The Spanish word for water is ___.", answer: ["agua", "el agua"] },
+      ],
+    }),
+  );
 
   // HTML pages and their assets are real files, so they can be edited and opened in a browser too.
   fs.cpSync(path.join(import.meta.dirname, "fixtures/Web"), path.join(root, "Web"), { recursive: true });

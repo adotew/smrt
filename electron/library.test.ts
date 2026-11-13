@@ -241,4 +241,10 @@ test("decks are created, saved, listed, renamed and validated", async () => {
   assert.throws(() => library.readDeck(deck), /could not be read/);
   assert.deepEqual(library.listLibrary()[0].decks.map((f) => f.name), ["Terms.cards"]);
   assert.equal(path.basename(library.renameFile(deck, "Words")), "Words.cards");
+
+  const quiz = path.join(folder, "Test.quiz");
+  fs.writeFileSync(quiz, '{"questions": []}');
+  assert.equal(await library.readQuiz(quiz), '{"questions": []}');
+  assert.throws(() => library.readQuiz(pdf), /isn.t a quiz/);
+  assert.deepEqual(library.listLibrary()[0].quizzes.map((f) => f.name), ["Test.quiz"]);
 });

@@ -11,7 +11,9 @@
   import { assistant, chat, models } from "./assistant.svelte.ts";
   import { contextMenu } from "./ContextMenu.svelte";
   import FileIcon from "./FileIcon.svelte";
-  import Icon, { type IconName } from "./Icon.svelte";
+  import Icon, { streamdownIcons, type IconName } from "./Icon.svelte";
+  import Quiz from "./Quiz.svelte";
+  import { parseQuiz, quizSegments } from "./quiz.ts";
 
   let {
     mode,
@@ -52,16 +54,16 @@
 
   const streaming = $derived(chat.status === "submitted" || chat.status === "streaming");
   const fileName = (path: string) => path.split(/[\\/]/).pop()!;
-  const baseName = (path: string) => fileName(path).replace(/\.(pdf|md|cards|html)$/i, "");
+  const baseName = (path: string) => fileName(path).replace(/\.(pdf|md|cards|quiz|html)$/i, "");
   const fileType = (path: string) =>
-    /\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : /\.html$/i.test(path) ? "html" : "pdf";
+    /\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : /\.quiz$/i.test(path) ? "quiz" : /\.html$/i.test(path) ? "html" : "pdf";
   const filesOf = (message: UIMessage) => (message.metadata as { files?: string[] } | undefined)?.files ?? [];
   const textOf = (message: UIMessage) => message.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
   const mentionMatches = $derived(
     mentionQuery == null
       ? []
       : assistant.library
-          .flatMap((f) => [...f.pdfs, ...f.markdown, ...f.decks, ...f.html].map((file) => ({ ...file, folder: f.name })))
+          .flatMap((f) => [...f.pdfs, ...f.markdown, ...f.decks, ...f.quizzes, ...f.html].map((file) => ({ ...file, folder: f.name })))
           .filter((file) => !mentions.includes(file.path))
           .map((file) => ({ file, score: computeCommandScore(baseName(file.path), mentionQuery!, [file.folder]) }))
           .filter(({ score }) => score > 0)
@@ -70,7 +72,7 @@
   );
   const recentFiles = $derived.by(() => {
     const files = new Map(
-      assistant.library.flatMap((f) => [...f.pdfs, ...f.markdown, ...f.decks, ...f.html].map((file) => [file.path, { ...file, folder: f.name }])),
+      assistant.library.flatMap((f) => [...f.pdfs, ...f.markdown, ...f.decks, ...f.quizzes, ...f.html].map((file) => [file.path, { ...file, folder: f.name }])),
     );
     return assistant.recent.flatMap((path) => files.get(path) ?? []).slice(0, 6);
   });
@@ -241,12 +243,23 @@
                       {:else if isToolUIPart(part)}
                         {@render toolLine(part, live)}
                       {:else if part.type === "text"}
-                        <Streamdown
-                          content={part.text}
-                          baseTheme="shadcn"
-                          class="flex flex-col gap-3 leading-relaxed *:m-0 {compact ? 'text-sm' : 'text-[15px]'} [&_:is(ul,ol)]:m-0 [&_:is(ul,ol)]:p-0"
-                          animation={{ enabled: true, type: "fade", tokenize: "word" }}
-                        />
+                        {#each quizSegments(part.text) as segment, j (j)}
+                          {@const quiz = segment.type === "quiz" && segment.complete ? parseQuiz(segment.text) : null}
+                          {#if quiz}
+                            <Quiz {quiz} {compact} />
+                          {:else if segment.type === "quiz" && !segment.complete && live}
+                            {@render statusLine("checklist", "Writing a quiz", "running")}
+                          {:else}
+                            <!-- A quiz that can't be read shows as the JSON it is. -->
+                            <Streamdown
+                              content={segment.type === "quiz" ? `\`\`\`json\n${segment.text}\n\`\`\`` : segment.text}
+                              baseTheme="shadcn"
+                              icons={streamdownIcons}
+                              class="flex flex-col gap-3 leading-relaxed *:m-0 {compact ? 'text-sm' : 'text-[15px]'} [&_:is(ul,ol)]:m-0 [&_:is(ul,ol)]:p-0"
+                              animation={{ enabled: true, type: "fade", tokenize: "word" }}
+                            />
+                          {/if}
+                        {/each}
                       {/if}
                     {/each}
                     {#if live && message.parts.length === 0}
@@ -254,13 +267,14 @@
                     {/if}
                     {#if !live && textOf(message)}
                       <div class="-ml-2 flex gap-0.5">
-                        <Button variant="ghost" size="icon-xs" aria-label="Copy" title="Copy" onclick={() => copy(message)}>
+                        <Button variant="ghost" size="icon-sm" class="[&_svg]:size-5!" aria-label="Copy" title="Copy" onclick={() => copy(message)}>
                           <Icon name={copied === message.id ? "check" : "copy"} />
                         </Button>
                         {#if index === chat.messages.length - 1}
                           <Button
                             variant="ghost"
-                            size="icon-xs"
+                            size="icon-sm"
+                            class="[&_svg]:size-5!"
                             aria-label="Retry"
                             title="Retry"
                             onclick={() => chat.regenerate({ messageId: message.id })}
@@ -372,7 +386,7 @@
       <Button
         variant="ghost"
         size="sm"
-        class="ml-auto gap-2 font-normal [&_svg]:translate-y-px text-muted-foreground {mode === 'page' ? 'text-[14.5px] [&_svg]:size-5!' : 'text-[13.5px] [&_svg]:size-[18px]!'}"
+        class="ml-auto gap-2 font-normal [&_svg]:translate-y-px text-muted-foreground {mode === 'page' ? 'text-[13px] [&_svg]:size-5!' : 'text-xs [&_svg]:size-[18px]!'}"
         onclick={pickModel}
       >
         <!-- Sized by the button's important class, as Button's own icon rule is more specific; nudged down to sit on the text's cap height. -->
@@ -392,7 +406,7 @@
   <div class="assistant-page absolute inset-0 flex flex-col bg-(--background) text-(--foreground)" style:padding-left="{inset}px">
     {#if chat.messages.length > 0}
       <div class="absolute top-2.5 right-3 z-[2] flex gap-1 [-webkit-app-region:no-drag]">
-        <Button variant="ghost" size="sm" class="text-muted-foreground" onclick={newChat}><Icon name="notes" /> New Chat</Button>
+        <Button variant="ghost" size="icon-sm" class="text-muted-foreground [&_svg]:size-5!" title="New Chat" aria-label="New Chat" onclick={newChat}><Icon name="notes" /></Button>
       </div>
       {@render thread(false)}
       <div class="mx-auto w-full max-w-2xl px-6 pb-5">{@render composer(false)}</div>

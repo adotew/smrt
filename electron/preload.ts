@@ -25,6 +25,7 @@ const channels: Record<keyof Handlers, true> = {
   createDeck: true,
   readDeck: true,
   saveDeck: true,
+  readQuiz: true,
   readPDF: true,
   readNotes: true,
   saveNotes: true,
