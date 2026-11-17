@@ -4,6 +4,7 @@
   import { Button } from "$lib/components/ui/button";
   import * as ToggleGroup from "$lib/components/ui/toggle-group";
   import EmptyState from "./EmptyState.svelte";
+  import FlipCard from "./FlipCard.svelte";
   import Icon from "./Icon.svelte";
   import Markdown from "./Markdown.svelte";
 
@@ -107,7 +108,8 @@
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (!active || editing || !studying || event.metaKey || event.ctrlKey || event.altKey) return;
+    // The focused card flips itself on Space and prevents the default.
+    if (event.defaultPrevented || !active || editing || !studying || event.metaKey || event.ctrlKey || event.altKey) return;
     if ((event.target as Element).closest("input, textarea, dialog")) return;
     if (event.key === " ") revealed = !revealed;
     else if (event.key === "ArrowRight") go(1);
@@ -126,22 +128,14 @@
     <div class="mx-auto flex min-h-full max-w-2xl flex-col justify-center gap-6 px-10 py-14">
       {#if studying}
         {#key studying.id}
-          <!-- Mousedown is prevented so the card never takes focus, which would make Space press it as well. -->
-          <button
-            class="flex aspect-[3/2] w-full cursor-pointer flex-col overflow-hidden rounded-3xl border-0 bg-(--note) p-0 text-inherit"
-            title="Flip Card"
-            onmousedown={(event) => event.preventDefault()}
-            onclick={() => (revealed = !revealed)}
-          >
-            {#key revealed}
-              <Markdown
-                class="card-markdown study min-h-0 flex-1 overflow-auto"
-                value={revealed ? studying.back : studying.front}
-                editable={false}
-                {onerror}
-              />
-            {/key}
-          </button>
+          <FlipCard class="aspect-[3/2] w-full" bind:flipped={revealed}>
+            {#snippet front()}
+              <Markdown class="card-markdown study min-h-0 flex-1 overflow-auto" value={studying.front} editable={false} {onerror} />
+            {/snippet}
+            {#snippet back()}
+              <Markdown class="card-markdown study min-h-0 flex-1 overflow-auto" value={studying.back} editable={false} {onerror} />
+            {/snippet}
+          </FlipCard>
         {/key}
         <div class="flex items-center justify-center gap-2">
           <Button
