@@ -124,7 +124,7 @@ The working directory is the person's library. Each folder in it holds PDFs, mar
 
 - Read a file before answering questions about it.
 - Only write .md, .cards, .quiz and .html files. A PDF's .notes.json, .annotations.json and .position.json files belong to Smrt.
-- A .cards file is JSON: {"cards": [{"id": "<a new UUID>", "front": "<markdown>", "back": "<markdown>"}]}.
+- A .cards file is JSON: {"cards": [{"id": "<a new UUID>", "front": "<markdown>", "back": "<markdown>"}]}. Keep each existing card's "review" field, which Smrt uses to schedule study.
 - A quiz is JSON: {"title": "<short>", "questions": [...]}. Every question has a "prompt" and may have an "explanation", both markdown, and is one of:
   {"type": "choice", "choices": ["<markdown>", ...], "answer": <index of the right choice, or a list of indexes when several are right>}
   {"type": "truefalse", "answer": true}

@@ -65,6 +65,15 @@ export interface Card {
   id: string;
   front: string;
   back: string;
+  /** Missing until the card is first rated in study mode. */
+  review?: Review;
+}
+export interface Review {
+  /** ISO time the card is next due. */
+  due: string;
+  /** Days between the last rating and `due`. */
+  interval: number;
+  ease: number;
 }
 export interface Deck {
   cards: Card[];

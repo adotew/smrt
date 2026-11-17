@@ -7,6 +7,7 @@
   import FlipCard from "./FlipCard.svelte";
   import Icon from "./Icon.svelte";
   import Markdown from "./Markdown.svelte";
+  import { isDue, ratings, schedule, type Rating } from "./review.ts";
 
   const api = window.smrt;
 
@@ -26,8 +27,8 @@
 
   /** Null until the deck has loaded, so a deck that failed to load is never overwritten. */
   let cards = $state<Card[] | null>(null);
-  /** The position of the studied card among the cards with a front. */
-  let index = $state(0);
+  /** Ids of the cards left in this study session, the shown one first. */
+  let queue = $state<string[]>([]);
   let revealed = $state(false);
   /** Decks open in study mode. */
   let editing = $state(false);
@@ -41,7 +42,11 @@
 
   const name = $derived(path.split(/[\\/]/).pop()?.replace(/\.cards$/i, ""));
   const studyable = $derived(cards?.filter((card) => card.front.trim() || card.back.trim()) ?? []);
-  const studying = $derived(studyable[index]);
+  const studying = $derived(cards?.find((card) => card.id === queue[0]));
+  const nextDue = $derived(
+    Math.min(...studyable.map((card) => (card.review ? Date.parse(card.review.due) : Infinity))),
+  );
+  const daysToNext = $derived(Math.max(1, Math.ceil((nextDue - Date.now()) / (24 * 60 * 60 * 1000))));
 
   onMount(async () => {
     try {
@@ -94,17 +99,27 @@
     editing = true;
   }
 
-  function study() {
+  /** Studies the cards that are due, or every card when asked. */
+  function study(all = false) {
     editing = false;
-    index = 0;
     revealed = false;
+    queue = studyable.filter((card) => all || isDue(card)).map((card) => card.id);
   }
 
-  function go(step: number) {
-    const next = Math.min(Math.max(index + step, 0), studyable.length - 1);
-    if (next === index) return;
-    index = next;
+  const ratingStyles = {
+    again: { icon: "close", color: "text-red-500", label: "Again" },
+    hard: { icon: "minus", color: "text-amber-500", label: "Hard" },
+    good: { icon: "check", color: "text-green-500", label: "Good" },
+    easy: { icon: "bolt", color: "text-blue-500", label: "Easy" },
+  } as const;
+
+  function rate(rating: Rating) {
+    if (!studying) return;
+    studying.review = schedule(studying.review, rating);
+    // Cards answered Again come back at the end of this session.
+    queue = rating === "again" ? [...queue.slice(1), queue[0]] : queue.slice(1);
     revealed = false;
+    save();
   }
 
   function onkeydown(event: KeyboardEvent) {
@@ -112,8 +127,7 @@
     if (event.defaultPrevented || !active || editing || !studying || event.metaKey || event.ctrlKey || event.altKey) return;
     if ((event.target as Element).closest("input, textarea, dialog")) return;
     if (event.key === " ") revealed = !revealed;
-    else if (event.key === "ArrowRight") go(1);
-    else if (event.key === "ArrowLeft") go(-1);
+    else if (/^[1-4]$/.test(event.key)) rate(ratings[Number(event.key) - 1]);
     else return;
     event.preventDefault();
   }
@@ -137,30 +151,28 @@
             {/snippet}
           </FlipCard>
         {/key}
-        <div class="flex items-center justify-center gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            class="[&_svg:not([class*='size-'])]:size-5"
-            title="Previous Card"
-            aria-label="Previous Card"
-            disabled={index === 0}
-            onclick={() => go(-1)}
-          >
-            <Icon name="chevronLeft" />
-          </Button>
-          <span class="text-muted-foreground w-16 text-center text-sm tabular-nums">{index + 1} / {studyable.length}</span>
-          <Button
-            variant="ghost"
-            size="icon"
-            class="[&_svg:not([class*='size-'])]:size-5"
-            title="Next Card"
-            aria-label="Next Card"
-            disabled={index === studyable.length - 1}
-            onclick={() => go(1)}
-          >
-            <Icon name="chevronRight" />
-          </Button>
+        <div class="mt-6 flex items-center justify-center gap-4">
+          {#each ratings as rating, i (rating)}
+            {@const { icon, color, label } = ratingStyles[rating]}
+            <Button
+              variant="secondary"
+              class="size-16 rounded-full [&_svg:not([class*='size-'])]:size-7 {color}"
+              title="{label} ({i + 1})"
+              aria-label={label}
+              onclick={() => rate(rating)}
+            >
+              <Icon name={icon} />
+            </Button>
+          {/each}
+          </div>
+        <span class="text-muted-foreground -mt-2 text-center text-sm tabular-nums">{queue.length} left</span>
+      {:else if studyable.length}
+        <div class="flex flex-col items-center gap-3 text-center">
+          <p class="m-0 text-lg font-medium">All caught up</p>
+          {#if nextDue < Infinity}
+            <p class="text-muted-foreground m-0 text-sm">Next review {daysToNext === 1 ? "tomorrow" : `in ${daysToNext} days`}.</p>
+          {/if}
+          <Button variant="outline" onclick={() => study(true)}>Study All Cards</Button>
         </div>
       {:else}
         <p class="text-muted-foreground m-0 text-center">No cards to study yet.</p>
@@ -171,7 +183,7 @@
       <header class="mb-2 flex items-center gap-3">
         <h1 class="m-0 flex-1 text-2xl font-semibold">{name}</h1>
         <span class="text-muted-foreground text-sm">{cards.length} {cards.length === 1 ? "card" : "cards"}</span>
-        <Button onclick={study}>Study</Button>
+        <Button onclick={() => study()}>Study</Button>
       </header>
       {#each cards as card (card.id)}
         {@const side = sides[card.id] ?? "front"}
