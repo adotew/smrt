@@ -1095,3 +1095,60 @@ dialog .primary {
   border: 0;
   border-top: 1px solid var(--separator);
 }
+
+/* File icons */
+
+.file-icon {
+  flex: none;
+  fill: var(--icon-color);
+}
+.file-icon.pdf {
+  --icon-color: #db5c5c;
+}
+.file-icon.md {
+  --icon-color: #3574f0;
+}
+.file-icon.html {
+  display: grid;
+  color: #2e9e6b;
+}
+.file-icon.cards {
+  display: grid;
+  color: #d9922e;
+}
+.file-icon.quiz {
+  display: grid;
+  color: #8b6fd9;
+}
+@media (prefers-color-scheme: dark) {
+  .file-icon.pdf {
+    --icon-color: #e55765;
+  }
+  .file-icon.md {
+    --icon-color: #548af7;
+  }
+}
+
+/* Flip card */
+
+.flip-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-3xl);
+  background: var(--note);
+  backface-visibility: hidden;
+}
+
+[data-fade] .flip-face {
+  opacity: 0;
+  backface-visibility: visible;
+  transition: opacity 200ms ease;
+}
+
+[data-fade="front"] .flip-face:first-child,
+[data-fade="back"] .flip-face:last-child {
+  opacity: 1;
+}

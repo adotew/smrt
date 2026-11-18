@@ -1,6 +1,6 @@
 # Smrt
 
-A PDF library and reader with per-page notes and a markdown editor, built with Electron, Svelte,
+A PDF library and reader with per-page notes and a markdown editor, built with Electron, React,
 TypeScript, pdf.js and Tiptap. It runs on macOS, Windows and Linux.
 
 PDFs, markdown files and flashcard decks live in folders inside the `Library` folder in Smrt's app data directory:
@@ -72,7 +72,7 @@ npm run dev
 ```
 
 This serves the renderer from Vite at http://localhost:5173 and opens Electron
-against it, so Svelte/CSS edits update the window instantly. Changes under
+against it, so React/CSS edits update the window instantly. Changes under
 `electron/` still need a restart.
 
 Dev runs use their own data in `.dev-data/` instead of your real library. It is filled
@@ -80,7 +80,7 @@ with sample PDFs, notes, highlights, markdown files and decks on first run; `npm
 resets it.
 
 `npm start` bundles the main and preload processes from `electron/` into `build/`,
-builds the Svelte renderer into `dist/`, and launches Electron.
+builds the React renderer into `dist/`, and launches Electron.
 
 | Action          | macOS                    | Windows and Linux     |
 | --------------- | ------------------------ | --------------------- |
@@ -145,7 +145,7 @@ npm run check
 npm test
 ```
 
-`check` type-checks the whole app, including the Svelte components. The IPC API in
+`check` type-checks the whole app, including the React components. The IPC API in
 `window.smrt` is typed from the handlers in `electron/main.ts`.
 
 Tests cover folder and name validation, PDF importing and renaming, markdown files, notes,

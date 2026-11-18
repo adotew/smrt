@@ -3,9 +3,9 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "tw-animate-css";
-@import "shadcn-svelte/tailwind.css";
+@import "shadcn/tailwind.css";
 @import "./app.css" layer(app);
-@source "../node_modules/svelte-streamdown/dist";
+@source "../node_modules/streamdown/dist";
 
 @custom-variant dark (@media (prefers-color-scheme: dark));
 
@@ -129,5 +129,21 @@
 		background: none;
 		border: 0 solid;
 		padding: 0;
+	}
+	/* Streamdown is styled for Tailwind's preflight, which the app leaves out. */
+	[data-streamdown],
+	[data-streamdown] * {
+		@apply border-border;
+	}
+	[data-streamdown] pre {
+		margin: 0;
+	}
+	button[data-streamdown],
+	[data-streamdown] button {
+		background: none;
+		border: 0 solid;
+		padding: 0;
+		font: inherit;
+		color: inherit;
 	}
 }
