@@ -197,8 +197,9 @@ main {
   display: none;
 }
 
+/* Traffic lights span x 18–78, so this leaves 10px on each side. */
 #reader-controls.floating.windowed {
-  padding-left: 72px;
+  padding-left: 78px;
 }
 
 #document {
