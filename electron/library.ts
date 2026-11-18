@@ -171,6 +171,28 @@ export function createLibrary(
     return folder;
   }
 
+  function libraryFolder(folder: string) {
+    folder = inLibrary(folder);
+    if (path.dirname(folder) !== root || !fs.statSync(folder).isDirectory()) throw new Error("That isn't a library folder.");
+    return folder;
+  }
+
+  function renameFolder(source: string, name: string) {
+    source = libraryFolder(source);
+    const destination = path.join(root, validatedName(name));
+    if (destination === source) return source;
+    // A case-only rename finds the source itself on case-insensitive volumes.
+    if (destination.toLowerCase() !== source.toLowerCase() && fs.existsSync(destination)) {
+      throw new Error("A folder with that name already exists.");
+    }
+    fs.renameSync(source, destination);
+    return destination;
+  }
+
+  async function trashFolder(folder: string) {
+    await trash(libraryFolder(folder));
+  }
+
   function importPDF(source: string, folder: string) {
     folder = inLibrary(folder);
     const header = Buffer.alloc(1024);
@@ -446,6 +468,8 @@ export function createLibrary(
     urlFile,
     listLibrary,
     createFolder,
+    renameFolder,
+    trashFolder,
     importPDF,
     renameFile,
     trashFile,

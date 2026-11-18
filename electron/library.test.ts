@@ -29,6 +29,21 @@ test("folders persist and names are validated", () => {
   }
 });
 
+test("folders can be renamed and trashed", async () => {
+  const { dir, library, source, trashed } = setup();
+  const pdf = library.importPDF(source, library.createFolder("Math"));
+  library.createFolder("Physics");
+  const renamed = library.renameFolder(path.dirname(pdf), " Maths ");
+  assert.ok(fs.existsSync(path.join(renamed, "Paper.pdf")));
+  assert.equal(library.renameFolder(renamed, "maths"), path.join(path.dirname(renamed), "maths"));
+  assert.throws(() => library.renameFolder(path.join(path.dirname(renamed), "maths"), "Physics"), /already exists/);
+  assert.throws(() => library.renameFolder(path.join(path.dirname(renamed), "maths"), "a/b"), /without any/);
+  assert.throws(() => library.renameFolder(path.join(path.dirname(renamed), "maths", "Paper.pdf"), "x"), /isn't a library folder/);
+  await assert.rejects(library.trashFolder(dir), /outside the library/);
+  await library.trashFolder(path.join(path.dirname(renamed), "Physics"));
+  assert.deepEqual(trashed.map((f) => path.basename(f)), ["Physics"]);
+});
+
 test("importing refuses invalid PDFs and duplicates", () => {
   const { dir, library, source } = setup();
   const folder = library.createFolder("Math");

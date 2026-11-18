@@ -253,11 +253,50 @@
       { id: "import", label: "Import PDF…" },
       { id: "markdown", label: "New Markdown File…" },
       { id: "deck", label: "New Flashcard Deck…" },
+      { type: "separator" as const },
+      { id: "rename", label: "Rename…" },
+      { id: "trash", label: "Move to Trash" },
     ]);
     folderPath = target;
     if (choice === "import") await importInto(target);
     else if (choice === "markdown") await newFile(target, "md");
     else if (choice === "deck") await newFile(target, "cards");
+    else if (choice === "rename") await renameFolder(target);
+    else if (choice === "trash") await trashFolder(target);
+  }
+
+  const inFolder = (file: string, folder: string) => file.startsWith(folder) && /[\\/]/.test(file[folder.length] ?? "");
+
+  async function renameFolder(target: string) {
+    const name = await ask("Rename Folder", "Rename", folders.find((f) => f.path === target)?.name);
+    if (name == null) return;
+    await perform(async () => {
+      await flushEditors();
+      const renamed = await api.renameFolder(target, name);
+      const move = (p: string) => (inFolder(p, target) ? renamed + p.slice(target.length) : p);
+      for (const pane of panes) if (pane.path) pane.path = move(pane.path);
+      remember(assistant.recent.map(move));
+      if (expanded.delete(target)) expanded.add(renamed);
+      folderPath = renamed;
+      await reload();
+    });
+  }
+
+  async function trashFolder(target: string) {
+    await perform(async () => {
+      // Closing first lets pending saves land before the folder moves, so they can't recreate it.
+      const showing = panes.filter((p) => p.path && inFolder(p.path, target));
+      if (showing.length) {
+        await flushEditors();
+        for (const pane of showing) pane.path = null;
+        await tick();
+      }
+      await api.trashFolder(target);
+      expanded.delete(target);
+      folderPath = null;
+      remember(assistant.recent.filter((p) => !inFolder(p, target)));
+      await reload();
+    });
   }
 
   function toggleFolder(target: Folder) {

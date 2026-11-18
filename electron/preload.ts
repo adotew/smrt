@@ -16,6 +16,8 @@ export type SmrtApi = {
 const channels: Record<keyof Handlers, true> = {
   listLibrary: true,
   createFolder: true,
+  renameFolder: true,
+  trashFolder: true,
   importPDF: true,
   renameFile: true,
   trashFile: true,
