@@ -5,6 +5,7 @@ import { useAssistant } from "./assistant.ts";
 import Deck, { type DeckHandle } from "./Deck.tsx";
 import Html from "./Html.tsx";
 import { IconButton } from "./Icon.tsx";
+import { WarmTooltipGroup } from "$lib/components/ui/warm-tooltip";
 import MarkdownEditor, { type MarkdownEditorHandle } from "./MarkdownEditor.tsx";
 import QuizFile from "./QuizFile.tsx";
 import Reader, { type ReaderHandle } from "./Reader.tsx";
@@ -100,9 +101,17 @@ export default function Pane({
             style={{ "--inset": `${inset}px`, x: "-50%" } as CSSProperties}
             {...grow(0.9)}
           >
-            <IconButton name="notes" title="Notes" onClick={toggleNotes} pressed={showingNotes} />
-            <IconButton name="pageNote" title="Add Note to Page" onClick={() => setPlacingNote(!placingNote)} pressed={placingNote} />
-            <IconButton name="photo" title="Add Image to Page" onClick={() => reader.current?.insertImage()} />
+            <WarmTooltipGroup>
+              <IconButton tooltip name="notes" title="Notes" onClick={toggleNotes} pressed={showingNotes} />
+              <IconButton
+                tooltip
+                name="pageNote"
+                title="Add Note to Page"
+                onClick={() => setPlacingNote(!placingNote)}
+                pressed={placingNote}
+              />
+              <IconButton tooltip name="photo" title="Add Image to Page" onClick={() => reader.current?.insertImage()} />
+            </WarmTooltipGroup>
           </motion.div>
         )}
       </AnimatePresence>

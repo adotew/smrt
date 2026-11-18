@@ -1,4 +1,5 @@
 import type { SVGProps } from "react";
+import WarmTooltip from "$lib/components/ui/warm-tooltip";
 
 // Heroicons 24px outline.
 const paths = {
@@ -96,17 +97,20 @@ export function IconButton({
   onClick,
   disabled = false,
   pressed,
+  tooltip = false,
 }: {
   name: IconName;
   title: string;
   onClick: () => void;
   disabled?: boolean;
   pressed?: boolean;
+  /** Labels the button with an animated tooltip instead of the native one; put siblings in a WarmTooltipGroup. */
+  tooltip?: boolean;
 }) {
-  return (
+  const button = (
     <button
       className={`icon-button ${pressed ? "active" : ""}`}
-      title={title}
+      title={tooltip ? undefined : title}
       aria-label={title}
       aria-pressed={pressed}
       onClick={onClick}
@@ -114,5 +118,12 @@ export function IconButton({
     >
       <Icon name={name} />
     </button>
+  );
+  return tooltip ? (
+    <WarmTooltip content={title} surfaceColor="var(--sidebar)" inkColor="CanvasText" size="sm">
+      {button}
+    </WarmTooltip>
+  ) : (
+    button
   );
 }
