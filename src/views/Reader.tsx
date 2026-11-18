@@ -119,13 +119,11 @@ interface Props {
   onPlacingNoteChange?: (placing: boolean) => void;
   /** Called with whether a text box is being edited, so its formatting bar replaces the PDF toolbar. */
   onEditingTextChange?: (editing: boolean) => void;
-  /** Width on the left covered by the floating sidebar; pages are laid out beside it. */
-  inset?: number;
   onerror: (error: unknown) => void;
 }
 
 export default function Reader(props: Props) {
-  const { ref, path, showingNotes, placingNote = false, inset = 0 } = props;
+  const { ref, path, showingNotes, placingNote = false } = props;
   // Listeners and async loads outlive a render, so they read props through this.
   const latest = useRef(props);
   latest.current = props;
@@ -170,7 +168,7 @@ export default function Reader(props: Props) {
       ? 1
       : Math.max(
           0.1,
-          (s.containerWidth - (latest.current.inset ?? 0) - (withNotes() ? NOTES_WIDTH + PAGE_GAP : 0) - PAGE_GAP * 2) /
+          (s.containerWidth - (withNotes() ? NOTES_WIDTH + PAGE_GAP : 0) - PAGE_GAP * 2) /
             Math.max(...s.pages.map((page) => page.width)),
         );
   const effective = () => s.scale ?? fit();
@@ -768,7 +766,6 @@ export default function Reader(props: Props) {
         className={`pages ${placingNote ? "placing" : ""}`}
         role="document"
         ref={container}
-        style={{ paddingLeft: inset }}
         onScroll={onscroll}
         onPointerDown={onpointerdown}
         onPointerUp={onpointerup}
@@ -893,7 +890,7 @@ export default function Reader(props: Props) {
             className="bottom-toolbar text-format floating"
             role="toolbar"
             tabIndex={-1}
-            style={{ "--inset": `${inset}px`, x: "-50%" } as CSSProperties}
+            style={{ x: "-50%" }}
             {...grow(0.9)}
             onMouseDown={(event) => event.preventDefault()}
           >

@@ -1,6 +1,15 @@
-import { Fragment, useEffect, useRef, useState, type PointerEvent } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
+import {
+  DockviewDefaultTab,
+  DockviewReact,
+  themeLight,
+  type DockviewApi,
+  type DockviewReadyEvent,
+  type IDockviewPanelHeaderProps,
+  type IDockviewPanelProps,
+} from "dockview-react";
 import type { Command } from "../electron/main.ts";
 import type { Folder } from "../electron/library.ts";
 import ContextMenu, { contextMenu } from "./components/ContextMenu.tsx";
@@ -10,39 +19,21 @@ import Icon, { IconButton } from "./components/Icon.tsx";
 import { assistant, useAssistant } from "./lib/assistant.ts";
 import Pane, { fileType, type PaneHandle } from "./components/Pane.tsx";
 import { ease } from "./lib/transitions.ts";
+import Assistant from "./views/Assistant.tsx";
 
 const api = window.smrt;
 
 type File = Folder["pdfs"][number];
-/** One pane, or two side by side; each shows a PDF, markdown file, deck, quiz or HTML page. */
-interface Layout {
-  panes: { id: string; path: string | null }[];
-  /** Index of the pane the sidebar and menu commands act on. */
-  active: number;
-  /** The left pane's share of the width in split view. */
-  ratio: number;
-}
-
-/** The floating sidebar's width plus its margin and the gap beside it; matches `#sidebar` in app.css. */
-const SIDEBAR_INSET = 256;
 
 const baseName = (name: string) => name.replace(/\.(pdf|md|cards|quiz|html)$/i, "");
+const title = (path: string) => baseName(path.split(/[\\/]/).pop()!);
 const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
 const filesOf = (folder: Folder) => [...folder.pdfs, ...folder.markdown, ...folder.decks, ...folder.quizzes, ...folder.html];
 const inFolder = (file: string, folder: string) => file.startsWith(folder) && /[\\/]/.test(file[folder.length] ?? "");
+const pathOf = (panel: { params?: Record<string, unknown> }) => panel.params?.path as string;
 
-/** Sets the path shown in pane `index`. */
-const showIn = (layout: Layout, index: number, path: string | null): Layout => ({
-  ...layout,
-  panes: layout.panes.map((pane, i) => (i === index ? { ...pane, path } : pane)),
-});
-/** Focuses the other pane, adding an empty one on the right if there is only one. */
-const split = (layout: Layout): Layout => ({
-  ...layout,
-  panes: layout.panes.length === 1 ? [...layout.panes, { id: crypto.randomUUID(), path: null }] : layout.panes,
-  active: 1 - layout.active,
-});
-const withoutPane = (layout: Layout, index: number): Layout => ({ panes: layout.panes.filter((_, i) => i !== index), active: 0, ratio: 0.5 });
+/** Dockview's light theme, recoloured from app.css so it follows dark mode too. */
+const theme = { ...themeLight, className: "dockview-theme-light dock-theme" };
 
 /** Slides the list open while the files travel down from the folder, and back up on close. */
 const reveal = {
@@ -52,20 +43,49 @@ const reveal = {
   transition: { duration: 0.2, ease },
 } as const;
 
+/** What the dock's panels need from App; dockview renders them outside App's props. */
+const Panes = createContext<{
+  views: RefObject<Record<string, PaneHandle | null>>;
+  active: string | null;
+  onerror: (error: unknown) => void;
+}>(null!);
+
+function FilePanel({ api: panel, params }: IDockviewPanelProps<{ path: string }>) {
+  const { views, active, onerror } = useContext(Panes);
+  return (
+    <div className="pane">
+      <Pane ref={(handle) => void (views.current[panel.id] = handle)} path={params.path} active={panel.id === active} onerror={onerror} />
+    </div>
+  );
+}
+
+const components = { file: FilePanel };
+
+/** Dockview's own tab, which keeps closing and middle-clicking, with the file's icon before its name, as in VS Code. */
+const FileTab = (props: IDockviewPanelHeaderProps<{ path: string }>) => (
+  <div className="file-tab">
+    <FileIcon type={fileType(props.params.path)} size={16} />
+    <DockviewDefaultTab {...props} />
+  </div>
+);
+const Watermark = () => (
+  <>
+    <div className="drag-strip"></div>
+    <EmptyState icon="document" title="No file open" description="Pick one from the library." />
+  </>
+);
+
 export default function App() {
   const { library: folders, edits } = useAssistant();
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   /** Folder used for imports. */
   const [folderPath, setFolderPath] = useState<string | null>(null);
-  const [layout, setLayoutState] = useState<Layout>(() => ({ panes: [{ id: crypto.randomUUID(), path: null }], active: 0, ratio: 0.5 }));
-  // Menu commands and awaited dialogs act on the layout as it is by then.
-  const layoutRef = useRef(layout);
-  const setLayout = (change: (layout: Layout) => Layout) => {
-    layoutRef.current = change(layoutRef.current);
-    setLayoutState(layoutRef.current);
-  };
+  const dock = useRef<DockviewApi>(null);
+  /** The active panel's id and file, which the sidebar, assistant and menu commands follow. */
+  const [active, setActive] = useState<{ id: string; path: string } | null>(null);
   const views = useRef<Record<string, PaneHandle | null>>({});
   const [showingSidebar, setShowingSidebar] = useState(true);
+  const [showingAssistant, setShowingAssistant] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
 
   const promptDialog = useRef<HTMLDialogElement>(null);
@@ -74,15 +94,17 @@ export default function App() {
   const alertDialog = useRef<HTMLDialogElement>(null);
   const [alertMessage, setAlertMessage] = useState("");
 
-  const { panes, active, ratio } = layout;
   // Leaves room for the traffic lights outside fullscreen.
   const windowed = api.platform === "darwin" && !fullscreen;
-  const filePath = panes[active].path;
-  const view = () => views.current[layoutRef.current.panes[layoutRef.current.active].id];
-  // The toolbar pills sit over the left pane, so only its PDFs need their background.
-  const bare = !panes[0].path || fileType(panes[0].path) !== "pdf";
+  const filePath = active?.path ?? null;
+  const panels = () => dock.current?.panels ?? [];
+  const view = () => {
+    const id = dock.current?.activePanel?.id;
+    return id ? views.current[id] : null;
+  };
   /** Lets pending markdown and deck saves land before their file moves. */
   const flushEditors = () => Promise.all(Object.values(views.current).map((v) => v?.flush()));
+  const saveLayout = () => dock.current && localStorage.setItem("layout", JSON.stringify(dock.current.toJSON()));
   const toggleSidebar = () => setShowingSidebar((showing) => !showing);
   const expand = (folder: string) => setExpanded((expanded) => new Set(expanded).add(folder));
   const collapse = (folder: string) =>
@@ -104,7 +126,7 @@ export default function App() {
     const commands: Partial<Record<Command, () => void>> = {
       toggleSidebar,
       toggleNotes: () => view()?.toggleNotes(),
-      toggleSplit: () => (layoutRef.current.panes.length > 1 ? setLayout((l) => withoutPane(l, l.active)) : setLayout(split)),
+      toggleSplit,
       zoomIn: () => view()?.zoomIn(),
       zoomOut: () => view()?.zoomOut(),
       zoomReset: () => view()?.zoom(1),
@@ -116,7 +138,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    perform(reload);
+    perform(async () => {
+      await reload();
+      restoreLayout();
+    });
     api.on("fullscreen", setFullscreen);
     api.on("command", (command) => onCommand.current?.(command));
     function onkeydown(event: KeyboardEvent) {
@@ -134,6 +159,25 @@ export default function App() {
   useEffect(() => {
     if (Object.keys(edits).length) perform(reload);
   }, [edits]);
+
+  function onReady({ api: dockApi }: DockviewReadyEvent) {
+    dock.current = dockApi;
+    dockApi.onDidActivePanelChange(({ panel }) => setActive(panel ? { id: panel.id, path: pathOf(panel) } : null));
+    dockApi.onDidLayoutChange(saveLayout);
+  }
+
+  /** Reopens the last session's layout, leaving out files that have gone since. */
+  function restoreLayout() {
+    const saved = localStorage.getItem("layout");
+    if (!saved || !dock.current) return;
+    try {
+      dock.current.fromJSON(JSON.parse(saved));
+    } catch {
+      dock.current.clear();
+    }
+    const existing = new Set(assistant.get().library.flatMap((f) => filesOf(f).map((file) => file.path)));
+    for (const panel of panels().filter((p) => !existing.has(pathOf(p)))) panel.api.close();
+  }
 
   function showError(error: unknown) {
     setAlertMessage(String(error instanceof Error ? error.message : error).replace(/^Error invoking remote method '\w+': (Error: )?/, ""));
@@ -194,19 +238,39 @@ export default function App() {
     });
   }
 
-  /** Opens `path` in the active pane, or in the other one with `beside`; a file already open just gets focus. */
+  /** Opens `path` as a tab in the active group, or in a new group to its right with `beside`; a file already open just gets focus. */
   function openFile(path: string, beside = false) {
     const parent = assistant.get().library.find((f) => filesOf(f).some((p) => p.path === path));
     setFolderPath(parent?.path ?? null);
     if (parent) expand(parent.path);
     remember([path, ...assistant.get().recent.filter((p) => p !== path)]);
-    setLayout((layout) => {
-      // Two panes on one file would overwrite each other's saves.
-      const open = layout.panes.findIndex((p) => p.path === path);
-      if (open >= 0) return { ...layout, active: open };
-      const next = beside ? split(layout) : layout;
-      return showIn(next, next.active, path);
+    const dockApi = dock.current;
+    if (!dockApi) return;
+    // Two panels on one file would overwrite each other's saves.
+    const open = panels().find((p) => pathOf(p) === path);
+    if (open) return open.api.setActive();
+    const group = dockApi.activeGroup;
+    dockApi.addPanel({
+      id: crypto.randomUUID(),
+      component: "file",
+      title: title(path),
+      params: { path },
+      ...(beside && group && { position: { referenceGroup: group, direction: "right" } }),
     });
+  }
+
+  /** Moves the active file into a group of its own on the right, or gathers every file back into one group. */
+  function toggleSplit() {
+    const dockApi = dock.current;
+    const panel = dockApi?.activePanel;
+    if (!dockApi || !panel) return;
+    if (dockApi.groups.length > 1) {
+      const target = dockApi.groups[0];
+      for (const p of panels()) if (p.group !== target) p.api.moveTo({ group: target });
+      panel.api.setActive();
+    } else if (panel.group.panels.length > 1) {
+      panel.api.moveTo({ group: panel.group, position: "right" });
+    }
   }
 
   function remember(recent: string[]) {
@@ -214,49 +278,25 @@ export default function App() {
     localStorage.setItem("recent", JSON.stringify(assistant.get().recent));
   }
 
-  /** Gives the assistant the other pane, so it sits beside the file it was asked about. */
-  function pinAssistant() {
-    setLayout((layout) => {
-      const next = split(layout);
-      return showIn(next, next.active, null);
-    });
-  }
-
-  /** Shows the assistant's start page, focusing a pane that already shows it. */
-  function goHome() {
-    setLayout((layout) => {
-      const home = layout.panes.findIndex((p) => !p.path);
-      return home >= 0 ? { ...layout, active: home } : showIn(layout, layout.active, null);
-    });
-  }
-
-  function resize(event: PointerEvent<HTMLElement>) {
-    const divider = event.currentTarget;
-    const box = divider.parentElement!.getBoundingClientRect();
-    let ratio = layoutRef.current.ratio;
-    divider.setPointerCapture(event.pointerId);
-    divider.onpointermove = (e) => {
-      ratio = Math.min(0.9, Math.max(0.1, (e.clientX - box.left) / box.width));
-      setLayout((layout) => ({ ...layout, ratio }));
-    };
-    // Dragging the divider to either edge closes the pane it squeezes, like in browsers.
-    divider.onpointerup = () => {
-      divider.onpointermove = null;
-      if (ratio <= 0.15) setLayout((l) => withoutPane(l, 0));
-      else if (ratio >= 0.85) setLayout((l) => withoutPane(l, 1));
-    };
-  }
-
-  /** Closes the panes showing what `matches`, letting pending saves land first so they can't recreate it. */
+  /** Closes the panels showing what `matches`, letting pending saves land first so they can't recreate it. */
   async function closeShowing(matches: (path: string) => boolean) {
-    if (!layoutRef.current.panes.some((p) => p.path && matches(p.path))) return;
+    const showing = panels().filter((p) => matches(pathOf(p)));
+    if (!showing.length) return;
     await flushEditors();
-    flushSync(() => setLayout((layout) => ({ ...layout, panes: layout.panes.map((p) => (p.path && matches(p.path) ? { ...p, path: null } : p)) })));
+    flushSync(() => showing.forEach((p) => p.api.close()));
   }
 
-  /** Moves the panes and recent files showing what `move` renames. */
+  /** Moves the panels and recent files showing what `move` renames. */
   function follow(move: (path: string) => string) {
-    setLayout((layout) => ({ ...layout, panes: layout.panes.map((p) => (p.path ? { ...p, path: move(p.path) } : p)) }));
+    for (const panel of panels()) {
+      const path = move(pathOf(panel));
+      if (path === pathOf(panel)) continue;
+      panel.api.updateParameters({ path });
+      panel.api.setTitle(title(path));
+    }
+    const current = dock.current?.activePanel;
+    if (current) setActive({ id: current.id, path: pathOf(current) });
+    saveLayout();
     remember(assistant.get().recent.map(move));
   }
 
@@ -344,84 +384,79 @@ export default function App() {
 
   return (
     <>
-      <main>
-        <section id="reader">
-          <div id="drag-strip"></div>
-          <div id="reader-controls" className={`${windowed ? "windowed" : ""} ${showingSidebar ? "" : "floating"} ${bare ? "bare" : ""}`}>
-            <IconButton name="home" title="Home" onClick={goHome} />
-            <IconButton name="newFolder" title="New Folder" onClick={newFolder} />
-            <IconButton name="add" title="Add to Folder" onClick={() => folderPath && folderMenu(folderPath)} disabled={!folderPath} />
+      <main className={`${windowed ? "windowed" : ""} ${showingSidebar ? "" : "sidebar-hidden"} ${showingAssistant ? "" : "assistant-hidden"}`}>
+        <div id="window-controls">
+          <IconButton name="sidebar" title={showingSidebar ? "Hide Sidebar" : "Show Sidebar"} onClick={toggleSidebar} />
+          {showingSidebar && (
+            <>
+              <IconButton name="newFolder" title="New Folder" onClick={newFolder} />
+              <IconButton name="add" title="Add to Folder" onClick={() => folderPath && folderMenu(folderPath)} disabled={!folderPath} />
+            </>
+          )}
+        </div>
+        {!showingAssistant && (
+          <div id="assistant-toggle">
+            <IconButton name="sparkles" title="Assistant (⌘J)" onClick={() => setShowingAssistant(true)} />
           </div>
-          <div id="sidebar-toggle" className={`${showingSidebar ? "" : "floating"} ${bare ? "bare" : ""}`}>
-            <IconButton name="sidebar" title={showingSidebar ? "Hide Sidebar" : "Show Sidebar"} onClick={toggleSidebar} />
-          </div>
-          <aside id="sidebar" className={showingSidebar ? undefined : "hidden"}>
-            {folders.length === 0 ? (
-              <EmptyState icon="newFolder" title="Create a folder" action={{ label: "New Folder", run: newFolder }} />
-            ) : (
-              <ul role="tree">
-                {folders.map((f) => {
-                  const open = expanded.has(f.path);
-                  const selected = folderPath === f.path && !filePath;
-                  return (
-                    <li key={f.path} role="treeitem" aria-expanded={open} aria-selected={selected}>
-                      <button className={`row ${selected ? "selected" : ""}`} onClick={() => toggleFolder(f)} onContextMenu={() => folderMenu(f.path)}>
-                        <span className={`chevron ${open ? "open" : ""}`}>
-                          <Icon name="chevronRight" size={12} />
-                        </span>
-                        <span className="label">{f.name}</span>
-                      </button>
-                      <AnimatePresence initial={false}>
-                        {open && (
-                          <motion.ul role="group" {...reveal}>
-                            {filesOf(f)
-                              .sort(byName)
-                              .map((file) => (
-                                <li key={file.path} role="treeitem" aria-selected={filePath === file.path}>
-                                  <button
-                                    className={`row file ${filePath === file.path ? "selected" : ""}`}
-                                    onClick={() => openFile(file.path)}
-                                    onContextMenu={() => fileMenu(file)}
-                                  >
-                                    <FileIcon type={fileType(file.path)} size={22} />
-                                    <span className="label">{file.name}</span>
-                                  </button>
-                                </li>
-                              ))}
-                          </motion.ul>
-                        )}
-                      </AnimatePresence>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </aside>
-          <div id="document">
-            {panes.map((pane, index) => (
-              <Fragment key={pane.id}>
-                {index > 0 && <div className="divider" role="separator" aria-orientation="vertical" onPointerDown={resize}></div>}
-                <div
-                  className="pane"
-                  style={{ flex: `${panes.length > 1 ? (index === 0 ? ratio : 1 - ratio) : 1} 1 0` }}
-                  onPointerDownCapture={() => layoutRef.current.active !== index && setLayout((layout) => ({ ...layout, active: index }))}
-                >
-                  <Pane
-                    ref={(handle) => void (views.current[pane.id] = handle)}
-                    path={pane.path}
-                    context={pane.path ?? panes.find((p) => p.path)?.path ?? null}
-                    docked={panes.every((p) => p.path)}
-                    active={index === active}
-                    inset={index === 0 && showingSidebar ? SIDEBAR_INSET : 0}
-                    onerror={showError}
-                    onopen={openFile}
-                    onpin={pinAssistant}
-                  />
-                </div>
-              </Fragment>
-            ))}
-          </div>
+        )}
+        <aside id="sidebar" hidden={!showingSidebar}>
+          {folders.length === 0 ? (
+            <EmptyState icon="newFolder" title="Create a folder" action={{ label: "New Folder", run: newFolder }} />
+          ) : (
+            <ul role="tree">
+              {folders.map((f) => {
+                const open = expanded.has(f.path);
+                const selected = folderPath === f.path && !filePath;
+                return (
+                  <li key={f.path} role="treeitem" aria-expanded={open} aria-selected={selected}>
+                    <button className={`row ${selected ? "selected" : ""}`} onClick={() => toggleFolder(f)} onContextMenu={() => folderMenu(f.path)}>
+                      <span className={`chevron ${open ? "open" : ""}`}>
+                        <Icon name="chevronRight" size={12} />
+                      </span>
+                      <span className="label">{f.name}</span>
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {open && (
+                        <motion.ul role="group" {...reveal}>
+                          {filesOf(f)
+                            .sort(byName)
+                            .map((file) => (
+                              <li key={file.path} role="treeitem" aria-selected={filePath === file.path}>
+                                <button
+                                  className={`row file ${filePath === file.path ? "selected" : ""}`}
+                                  onClick={() => openFile(file.path)}
+                                  onContextMenu={() => fileMenu(file)}
+                                >
+                                  <FileIcon type={fileType(file.path)} size={22} />
+                                  <span className="label">{file.name}</span>
+                                </button>
+                              </li>
+                            ))}
+                        </motion.ul>
+                      )}
+                    </AnimatePresence>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </aside>
+        <section id="dock">
+          <Panes.Provider value={{ views, active: active?.id ?? null, onerror: showError }}>
+            <DockviewReact
+              components={components}
+              defaultTabComponent={FileTab}
+              watermarkComponent={Watermark}
+              onReady={onReady}
+              theme={theme}
+              defaultRenderer="always"
+              disableFloatingGroups
+            />
+          </Panes.Provider>
         </section>
+        <aside id="assistant" hidden={!showingAssistant}>
+          <Assistant context={filePath} open={showingAssistant} onOpenChange={setShowingAssistant} onopen={openFile} />
+        </aside>
       </main>
 
       <ContextMenu />

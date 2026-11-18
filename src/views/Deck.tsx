@@ -27,15 +27,12 @@ export default function Deck({
   ref,
   path,
   active = true,
-  inset = 0,
   onerror,
 }: {
   ref?: Ref<DeckHandle>;
   path: string;
   /** Only the active pane's deck answers the keyboard. */
   active?: boolean;
-  /** Width on the left covered by the floating sidebar. */
-  inset?: number;
   onerror: (error: unknown) => void;
 }) {
   /** Null until the deck has loaded, so a deck that failed to load is never overwritten. */
@@ -161,7 +158,7 @@ export default function Deck({
   });
 
   return (
-    <div className="absolute inset-0 overflow-auto bg-background [transition:padding-left_var(--motion)]" style={{ paddingLeft: inset }}>
+    <div className="absolute inset-0 overflow-auto bg-background">
       {cards?.length === 0 ? (
         <EmptyState icon="cards" title="Add your first card" action={{ label: "Add Card", run: addCard }} />
       ) : cards && !editing ? (

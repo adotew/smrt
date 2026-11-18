@@ -56,6 +56,7 @@
     "@tiptap/starter-kit": "^3.32.2",
     "@tiptap/suggestion": "^3.32.2",
     "ai": "^7.0.166",
+    "dockview-react": "^8.9.1",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^6.5.438",
     "streamdown": "^2.8.0"

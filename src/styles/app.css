@@ -72,10 +72,6 @@ button {
   flex: none;
 }
 
-#reader-controls button {
-  -webkit-app-region: no-drag;
-}
-
 .icon-button {
   display: grid;
   place-items: center;
@@ -148,94 +144,11 @@ main {
 
 /* Reader */
 
-#reader {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  display: flex;
-}
-
-/* Lets the window be dragged by its top edge when no bar is there. */
-#drag-strip {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 28px;
-  z-index: 1;
-  -webkit-app-region: drag;
-}
-
-#reader-controls {
-  position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  height: 52px;
-  padding: 0 14px;
-  -webkit-app-region: drag;
-}
-
-#reader-controls.windowed {
-  padding-left: 90px;
-}
-
-/* Same centre line as the sidebar header, so the traffic lights stay inside the pill. */
-#reader-controls.floating {
-  top: 6px;
-  left: 8px;
-  height: 40px;
-  padding: 0 2px;
-}
-
-/* The buttons belong to the sidebar, so they hide with it and the pill only frames the traffic lights. */
-#reader-controls.floating .icon-button,
-#reader-controls.floating:not(.windowed) {
-  display: none;
-}
-
-/* Traffic lights span x 18–78, so this leaves 10px on each side. */
-#reader-controls.floating.windowed {
-  padding-left: 78px;
-}
-
-#document {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-}
-
-.pane {
-  position: relative;
-  min-width: 0;
-  display: flex;
-}
-
-/* A hairline with a wider grab area. */
-.divider {
-  position: relative;
-  z-index: 1;
-  flex: none;
-  width: 1px;
-  background: var(--separator);
-  cursor: col-resize;
-}
-
-.divider::before {
-  content: "";
-  position: absolute;
-  inset: 0 -4px;
-}
-
 .bottom-toolbar {
   position: absolute;
   bottom: 12px;
-  left: calc(50% + var(--inset, 0px) / 2);
+  left: 50%;
   transform: translateX(-50%);
-  transition: left var(--motion);
   z-index: 1;
   display: flex;
   align-items: center;
@@ -255,31 +168,6 @@ main {
   color: CanvasText;
 }
 
-
-#sidebar-toggle {
-  position: absolute;
-  left: 6px;
-  bottom: 6px;
-  z-index: 2;
-}
-
-#sidebar-toggle:not(.floating) {
-  left: 14px;
-  bottom: 14px;
-}
-
-#reader-controls,
-#sidebar-toggle {
-  transition:
-    top var(--motion),
-    left var(--motion),
-    bottom var(--motion),
-    height var(--motion),
-    padding var(--motion),
-    background-color var(--motion),
-    box-shadow var(--motion);
-}
-
 .floating .icon-button {
   border-radius: 999px;
 }
@@ -293,44 +181,121 @@ main {
     0 2px 8px rgb(0 0 0 / 0.15);
 }
 
-/* The pill only needs to stand out over PDF pages. */
-.floating.bare {
-  background: none;
-  backdrop-filter: none;
-  box-shadow: none;
+/* Tabs, the library buttons and the assistant header share the top row, which drags the window where it's empty. */
+main {
+  position: relative;
 }
 
-/* Floats over the document so the pages show through, like the toolbar pills. */
-#sidebar {
+#window-controls,
+#assistant-toggle {
   position: absolute;
-  top: 8px;
-  left: 8px;
-  bottom: 8px;
-  z-index: 1;
+  top: 0;
+  z-index: 2;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+#window-controls {
+  left: 0;
+  padding-left: 8px;
+  -webkit-app-region: drag;
+}
+
+/* Traffic lights span x 18–78. */
+.windowed #window-controls {
+  padding-left: 86px;
+}
+
+main:not(.sidebar-hidden) #window-controls {
   width: 240px;
+}
+
+#window-controls button {
+  -webkit-app-region: no-drag;
+}
+
+#assistant-toggle {
+  right: 8px;
+}
+
+.drag-strip,
+.dv-void-container {
+  -webkit-app-region: drag;
+}
+
+.drag-strip {
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--dv-tabs-and-actions-container-height);
+}
+
+/* Room for the controls over the top-left group's tabs (the one first in every split) and the top-right one's, while their sidebar is hidden. */
+.sidebar-hidden .dv-groupview:not(.dv-view:not(:first-child) *) > .dv-tabs-and-actions-container {
+  padding-left: 52px;
+}
+
+.sidebar-hidden.windowed .dv-groupview:not(.dv-view:not(:first-child) *) > .dv-tabs-and-actions-container {
+  padding-left: 130px;
+}
+
+.assistant-hidden
+  .dv-groupview:not(.dv-horizontal > .dv-view-container > .dv-view:not(:last-child) *):not(.dv-vertical > .dv-view-container > .dv-view:not(:first-child) *)
+  > .dv-tabs-and-actions-container {
+  padding-right: 52px;
+}
+
+#sidebar,
+#assistant {
+  flex: none;
   overflow: auto;
-  padding: 52px 10px 52px;
-  background: color-mix(in srgb, var(--sidebar) 80%, transparent);
-  backdrop-filter: blur(20px) saturate(180%);
-  border-radius: 18px;
-  box-shadow:
-    0 0 0 0.5px var(--separator),
-    0 2px 8px rgb(0 0 0 / 0.15);
+  background: var(--sidebar);
+}
+
+#sidebar {
+  width: 240px;
+  padding: 44px 10px 8px;
+  border-right: 1px solid var(--separator);
   display: flex;
   flex-direction: column;
-  /* Slides on the compositor; animating width would re-lay out and re-blur every frame. */
-  will-change: transform;
-  transition:
-    transform var(--motion),
-    visibility 0s;
 }
 
-#sidebar.hidden {
-  transform: translateX(calc(-100% - 16px));
-  visibility: hidden;
-  transition:
-    transform var(--motion),
-    visibility 0s 0.2s;
+#assistant {
+  width: 380px;
+  border-left: 1px solid var(--separator);
+}
+
+#dock {
+  flex: 1;
+  min-width: 0;
+}
+
+.pane {
+  position: relative;
+  height: 100%;
+  display: flex;
+}
+
+.dock-theme {
+  color-scheme: inherit;
+  --dv-tabs-and-actions-container-height: 36px;
+  --dv-group-view-background-color: var(--background);
+  --dv-tabs-and-actions-container-background-color: var(--sidebar);
+  --dv-activegroup-visiblepanel-tab-background-color: var(--background);
+  --dv-activegroup-hiddenpanel-tab-background-color: var(--sidebar);
+  --dv-inactivegroup-visiblepanel-tab-background-color: var(--background);
+  --dv-inactivegroup-hiddenpanel-tab-background-color: var(--sidebar);
+  --dv-tab-divider-color: var(--separator);
+  --dv-activegroup-visiblepanel-tab-color: CanvasText;
+  --dv-activegroup-hiddenpanel-tab-color: var(--label);
+  --dv-inactivegroup-visiblepanel-tab-color: var(--label);
+  --dv-inactivegroup-hiddenpanel-tab-color: var(--tertiary);
+  --dv-separator-border: var(--separator);
+  --dv-paneview-header-border-color: var(--separator);
+  --dv-icon-hover-background-color: var(--hover);
+  --dv-drag-over-background-color: var(--selection);
+  --dv-scrollbar-background-color: var(--tertiary);
 }
 
 #sidebar ul {
@@ -399,7 +364,6 @@ main {
   flex-direction: column;
   /* Room to scroll the last page clear of the bottom toolbar. */
   padding: 12px 0 64px;
-  transition: padding-left var(--motion);
 }
 
 .page-row {
@@ -691,7 +655,6 @@ dialog .primary {
   inset: 0;
   overflow: auto;
   background: var(--background);
-  transition: padding-left var(--motion);
 }
 
 .html-page {
@@ -1151,4 +1114,18 @@ dialog .primary {
 [data-fade="front"] .flip-face:first-child,
 [data-fade="back"] .flip-face:last-child {
   opacity: 1;
+}
+
+/* Tabs */
+
+.file-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+}
+
+/* Dimmed with the tab's label, so only the shown file's icon is in full colour. */
+.dv-inactive-tab .file-tab .file-icon {
+  opacity: 0.6;
 }

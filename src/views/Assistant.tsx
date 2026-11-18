@@ -1,6 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { flushSync } from "react-dom";
-import { AnimatePresence, motion } from "motion/react";
 import { useChat } from "@ai-sdk/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { defaultFilter } from "cmdk";
@@ -21,7 +20,6 @@ import FileIcon from "../components/FileIcon.tsx";
 import Icon, { streamdownIcons, type IconName } from "../components/Icon.tsx";
 import Quiz from "../components/Quiz.tsx";
 import { parseQuiz, quizSegments } from "../lib/quiz.ts";
-import { grow } from "../lib/transitions.ts";
 
 type Part = UIMessage["parts"][number];
 
@@ -40,26 +38,21 @@ const toolIcons: Record<string, IconName> = {
 };
 
 export default function Assistant({
-  mode,
   context,
-  active,
-  inset = 0,
+  open,
+  onOpenChange,
   onopen,
-  onpin,
 }: {
-  /** `page` fills an empty pane; `dock` floats over an open file. */
-  mode: "page" | "dock";
   /** The file the assistant is looking at, if any. */
   context: string | null;
-  active: boolean;
-  inset?: number;
-  /** Opens a file in this pane, or `beside` it. */
+  /** Whether the sidebar shows; the assistant stays mounted while hidden so ⌘J can bring it back. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** Opens a file, or `beside` the active one. */
   onopen: (path: string, beside?: boolean) => void;
-  onpin?: () => void;
 }) {
   const { messages, status, error, sendMessage, stop, setMessages, regenerate, addToolApprovalResponse } = useChat({ chat });
   const { library, recent, model } = useAssistant();
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
   /** Off once the person removes the file chip, until they add it back. */
@@ -100,18 +93,14 @@ export default function Assistant({
   useEffect(() => {
     function onkeydown(event: KeyboardEvent) {
       const mod = window.smrt.platform === "darwin" ? event.metaKey : event.ctrlKey;
-      if (!active || event.defaultPrevented) return;
-      if (mod && !event.shiftKey && event.key.toLowerCase() === "j") {
-        event.preventDefault();
-        if (mode === "dock" && open && document.activeElement === field.current) setOpen(false);
-        else focus();
-      } else if (event.key === "Escape" && mode === "dock" && open) {
-        setOpen(false);
-      }
+      if (event.defaultPrevented || !mod || event.shiftKey || event.key.toLowerCase() !== "j") return;
+      event.preventDefault();
+      if (open && document.activeElement === field.current) onOpenChange(false);
+      else focus();
     }
     window.addEventListener("keydown", onkeydown);
     return () => window.removeEventListener("keydown", onkeydown);
-  }, [active, mode, open]);
+  }, [open]);
 
   async function send(text: string) {
     if (!text.trim() || streaming) return;
@@ -121,12 +110,11 @@ export default function Assistant({
     setDraft("");
     setMentions([]);
     setMentionQuery(null);
-    setOpen(true);
     await sendMessage({ text, metadata: { files } });
   }
 
   function focus() {
-    flushSync(() => setOpen(true));
+    flushSync(() => onOpenChange(true));
     field.current?.focus();
   }
 
@@ -243,7 +231,7 @@ export default function Assistant({
     );
   }
 
-  function assistantMessage(message: UIMessage, index: number, compact: boolean) {
+  function assistantMessage(message: UIMessage, index: number) {
     const live = streaming && index === messages.length - 1;
     return (
       <div className="flex min-w-0 flex-col gap-3 select-text">
@@ -254,14 +242,14 @@ export default function Assistant({
           return quizSegments(part.text).map((segment, j) => {
             const key = `${i}-${j}`;
             const quiz = segment.type === "quiz" && segment.complete ? parseQuiz(segment.text) : null;
-            if (quiz) return <Quiz key={key} quiz={quiz} compact={compact} />;
+            if (quiz) return <Quiz key={key} quiz={quiz} compact />;
             if (segment.type === "quiz" && !segment.complete && live) return <Fragment key={key}>{statusLine("checklist", "Writing a quiz", "running")}</Fragment>;
             return (
               // A quiz that can't be read shows as the JSON it is.
               <Streamdown
                 key={key}
                 icons={streamdownIcons}
-                className={`flex flex-col gap-3 leading-relaxed *:m-0 ${compact ? "text-sm" : "text-[15px]"} [&_:is(ul,ol)]:m-0 [&_:is(ul,ol)]:p-0`}
+                className="flex flex-col gap-3 text-sm leading-relaxed *:m-0 [&_:is(ul,ol)]:m-0 [&_:is(ul,ol)]:p-0"
                 animated={{ animation: "fadeIn", sep: "word" }}
                 isAnimating={live}
               >
@@ -294,11 +282,11 @@ export default function Assistant({
     );
   }
 
-  const thread = (compact: boolean) => (
+  const thread = () => (
     <MessageScrollerProvider autoScroll>
       <MessageScroller className="min-h-0 flex-1">
         <MessageScrollerViewport>
-          <MessageScrollerContent className={compact ? "gap-5 px-4 py-4" : "mx-auto w-full max-w-2xl gap-8 px-6 pt-14 pb-6"}>
+          <MessageScrollerContent className="gap-5 px-4 py-4">
             {messages.map((message, index) => (
               <MessageScrollerItem key={message.id} messageId={message.id} scrollAnchor={message.role === "user"}>
                 {message.role === "user" ? (
@@ -309,14 +297,13 @@ export default function Assistant({
                       </div>
                     )}
                     <div
-                      className={`ml-auto w-fit max-w-[80%] rounded-xl bg-muted px-3 py-2 leading-relaxed wrap-break-word whitespace-pre-wrap select-text
-                        ${compact ? "text-sm" : "text-[15px]"}`}
+                      className="ml-auto w-fit max-w-[80%] rounded-xl bg-muted px-3 py-2 text-sm leading-relaxed wrap-break-word whitespace-pre-wrap select-text"
                     >
                       {textOf(message)}
                     </div>
                   </>
                 ) : (
-                  assistantMessage(message, index, compact)
+                  assistantMessage(message, index)
                 )}
               </MessageScrollerItem>
             ))}
@@ -350,7 +337,7 @@ export default function Assistant({
     </span>
   );
 
-  const composer = (large: boolean) => (
+  const composer = () => (
     <form
       className="relative flex flex-col rounded-3xl bg-(--hover)"
       onSubmit={(event) => {
@@ -378,7 +365,7 @@ export default function Assistant({
         rows={1}
         placeholder={context && attach ? `Ask about ${baseName(context)}. @ files` : "Ask anything. @ files"}
         className={`field-sizing-content m-0 max-h-48 resize-none border-0 bg-transparent px-3.5 font-[inherit] text-inherit outline-none placeholder:text-muted-foreground
-          ${large ? "min-h-28 pt-4 pb-2" : "pt-3 pb-1"} ${mode === "page" ? "text-base" : "text-sm"}`}
+          pt-3 pb-1 text-sm`}
         onChange={(event) => {
           setDraft(event.target.value);
           findMention();
@@ -409,8 +396,7 @@ export default function Assistant({
           shouldFilter={false}
           loop
           label="Files"
-          className={`absolute left-0 z-10 h-auto w-max max-w-full min-w-64 rounded-2xl! bg-(--background) p-1.5 text-(--foreground) shadow-[0_0_0_0.5px_var(--separator),0_8px_32px_rgb(0_0_0/0.2)]
-            ${large ? "top-full mt-2" : "bottom-full mb-2"}`}
+          className={`absolute left-0 z-10 h-auto w-max max-w-full min-w-64 rounded-2xl! bg-(--background) p-1.5 text-(--foreground) bottom-full mb-2 shadow-[0_0_0_0.5px_var(--separator),0_8px_32px_rgb(0_0_0/0.2)]`}
         >
           {/* Keeps focus in the textarea, which drives the list. */}
           <CommandList ref={mentionList} onPointerDown={(event) => event.preventDefault()}>
@@ -435,7 +421,7 @@ export default function Assistant({
         <Button
           variant="ghost"
           size="sm"
-          className={`ml-auto gap-2 font-normal [&_svg]:translate-y-px text-muted-foreground ${mode === "page" ? "text-[13px] [&_svg]:size-5!" : "text-xs [&_svg]:size-[18px]!"}`}
+          className="ml-auto gap-2 text-xs font-normal text-muted-foreground [&_svg]:size-[18px]! [&_svg]:translate-y-px"
           onClick={pickModel}
         >
           <Icon name="claude" />
@@ -454,96 +440,42 @@ export default function Assistant({
     </form>
   );
 
-  if (mode === "page")
-    return (
-      <div className="assistant-page absolute inset-0 flex flex-col bg-(--background) text-(--foreground)" style={{ paddingLeft: inset }}>
-        {messages.length > 0 ? (
-          <>
-            <div className="absolute top-2.5 right-3 z-[2] flex gap-1 [-webkit-app-region:no-drag]">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="text-muted-foreground [&_svg]:size-5!"
-                title="New Chat"
-                aria-label="New Chat"
-                onClick={newChat}
-              >
-                <Icon name="notes" />
-              </Button>
-            </div>
-            {thread(false)}
-            <div className="mx-auto w-full max-w-2xl px-6 pb-5">{composer(false)}</div>
-          </>
-        ) : (
-          <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col justify-center gap-8 px-6 pb-[12vh]">
-            <h1 className="brand m-0 text-center text-[32px]">What are we learning today?</h1>
-            {composer(true)}
-            {recentFiles.length > 0 && (
-              <section className="flex flex-col gap-2 px-1">
-                <h2 className="m-0 px-2 text-xs font-medium text-muted-foreground">Recent</h2>
-                <div className="grid grid-cols-2 gap-1">
-                  {recentFiles.map((file) => (
-                    <button
-                      key={file.path}
-                      className="flex min-w-0 items-center gap-2.5 rounded-xl border-0 bg-transparent px-2.5 py-2 text-left text-sm text-inherit hover:bg-(--hover)"
-                      onClick={() => onopen(file.path)}
-                    >
-                      <FileIcon type={fileType(file.path)} size={18} />
-                      <span className="truncate">{baseName(file.path)}</span>
-                      <span className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground">{file.folder}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-          </div>
-        )}
-      </div>
-    );
-
   return (
-    <AnimatePresence initial={false}>
-      {open ? (
-        <motion.div
-          key="panel"
-          className="absolute right-3 bottom-3 z-[3] flex max-h-[min(640px,calc(100%-24px))] w-[400px] max-w-[calc(100%-24px)] origin-bottom-right flex-col rounded-[calc(var(--radius-3xl)+12px)] bg-(--background) text-(--foreground) shadow-[0_0_0_0.5px_var(--separator),0_8px_32px_rgb(0_0_0/0.2)]"
-          {...grow(0.92)}
-        >
-          <div className="flex h-12 shrink-0 items-center gap-1 pt-1 pr-3.5 pl-5">
-            <span className="text-muted-foreground">
-              <Icon name="sparkles" size={16} />
-            </span>
-            <span className="mr-auto text-sm font-medium">Assistant</span>
-            {messages.length > 0 && (
-              <Button variant="ghost" size="icon-sm" title="New Chat" aria-label="New Chat" onClick={newChat}>
-                <Icon name="notes" />
-              </Button>
-            )}
-            {onpin && (
-              <Button variant="ghost" size="icon-sm" title="Open in Split View" aria-label="Open in Split View" onClick={onpin}>
-                <Icon name="sidebar" />
-              </Button>
-            )}
-            <Button variant="ghost" size="icon-sm" title="Close (Esc)" aria-label="Close" onClick={() => setOpen(false)}>
-              <Icon name="chevronDown" />
-            </Button>
-          </div>
-          {messages.length > 0 && thread(true)}
-          <div className="shrink-0 p-3">{composer(false)}</div>
-        </motion.div>
+    <div className="flex h-full flex-col text-(--foreground)">
+      <div className="flex h-9 shrink-0 items-center gap-1 pr-2 pl-4 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]">
+        <span className="mr-auto text-sm font-medium">Assistant</span>
+        {messages.length > 0 && (
+          <Button variant="ghost" size="icon-sm" title="New Chat" aria-label="New Chat" onClick={newChat}>
+            <Icon name="notes" />
+          </Button>
+        )}
+        <Button variant="ghost" size="icon-sm" title="Close (⌘J)" aria-label="Close" onClick={() => onOpenChange(false)}>
+          <Icon name="close" />
+        </Button>
+      </div>
+      {messages.length > 0 ? (
+        thread()
       ) : (
-        <motion.button
-          key="button"
-          className="floating absolute right-3 bottom-3 z-[3] grid size-10 border-0 p-0 place-items-center text-muted-foreground transition-colors hover:text-foreground"
-          title="Ask Assistant (⌘J)"
-          aria-label="Ask Assistant"
-          onClick={focus}
-          {...grow(0.6)}
-        >
-          <Icon name="sparkles" size={18} />
-          {streaming && <span className="absolute top-1.5 right-1.5 size-2 animate-pulse rounded-full bg-sky-500"></span>}
-        </motion.button>
+        <div className="flex min-h-0 flex-1 flex-col justify-end gap-2 overflow-auto px-3 pb-2">
+          {recentFiles.length > 0 && (
+            <>
+              <h2 className="m-0 px-2 text-xs font-medium text-muted-foreground">Recent</h2>
+              {recentFiles.map((file) => (
+                <button
+                  key={file.path}
+                  className="flex min-w-0 items-center gap-2.5 rounded-xl border-0 bg-transparent px-2.5 py-2 text-left text-sm text-inherit hover:bg-(--hover)"
+                  onClick={() => onopen(file.path)}
+                >
+                  <FileIcon type={fileType(file.path)} size={18} />
+                  <span className="truncate">{baseName(file.path)}</span>
+                  <span className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground">{file.folder}</span>
+                </button>
+              ))}
+            </>
+          )}
+        </div>
       )}
-    </AnimatePresence>
+      <div className="shrink-0 p-3">{composer()}</div>
+    </div>
   );
 }

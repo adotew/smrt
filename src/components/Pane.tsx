@@ -1,6 +1,5 @@
-import { useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
+import { useImperativeHandle, useRef, useState, type Ref } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import Assistant from "../views/Assistant.tsx";
 import { useAssistant } from "../lib/assistant.ts";
 import Deck, { type DeckHandle } from "../views/Deck.tsx";
 import Html from "../views/Html.tsx";
@@ -30,26 +29,13 @@ export default function Pane({
   ref,
   path,
   active,
-  inset,
-  context,
-  docked,
   onerror,
-  onopen,
-  onpin,
 }: {
   ref?: Ref<PaneHandle>;
-  path: string | null;
-  /** The file the assistant looks at: this pane's, or the one beside an empty pane. */
-  context: string | null;
-  /** Whether an open file gets the floating assistant; off while the chat has a pane of its own. */
-  docked: boolean;
+  path: string;
   /** The pane the sidebar and menu commands act on. */
   active: boolean;
-  /** Width on the left covered by the floating sidebar. */
-  inset: number;
   onerror: (error: unknown) => void;
-  onopen: (path: string, beside?: boolean) => void;
-  onpin: () => void;
 }) {
   const [showingNotes, setShowingNotes] = useState(false);
   const [placingNote, setPlacingNote] = useState(false);
@@ -59,10 +45,10 @@ export default function Pane({
   const deck = useRef<DeckHandle>(null);
   const { edits } = useAssistant();
 
-  const type = path && fileType(path);
+  const type = fileType(path);
   const pdfPath = type === "pdf" ? path : null;
   // Reloads once the assistant writes the file.
-  const key = `${path}#${(path && edits[path]) ?? 0}`;
+  const key = `${path}#${edits[path] ?? 0}`;
 
   const toggleNotes = () => setShowingNotes((showing) => !showing);
   useImperativeHandle(ref, () => ({
@@ -85,20 +71,19 @@ export default function Pane({
         placingNote={placingNote}
         onPlacingNoteChange={setPlacingNote}
         onEditingTextChange={setEditingText}
-        inset={inset}
         onerror={onerror}
       />
-      {path && type === "md" && <MarkdownEditor key={key} ref={markdown} path={path} inset={inset} onerror={onerror} />}
-      {path && type === "cards" && <Deck key={key} ref={deck} path={path} active={active} inset={inset} onerror={onerror} />}
-      {path && type === "quiz" && <QuizFile key={key} path={path} inset={inset} onerror={onerror} />}
-      {path && type === "html" && <Html key={key} path={path} inset={inset} />}
+      {type === "md" && <MarkdownEditor key={key} ref={markdown} path={path} onerror={onerror} />}
+      {type === "cards" && <Deck key={key} ref={deck} path={path} active={active} onerror={onerror} />}
+      {type === "quiz" && <QuizFile key={key} path={path} onerror={onerror} />}
+      {type === "html" && <Html key={key} path={path} />}
       {/* Swaps in place with the text formatting bar, which grows in the same way. */}
       <AnimatePresence initial={false}>
         {pdfPath && !editingText && (
           <motion.div
             key="pdf-toolbar"
             className="bottom-toolbar floating"
-            style={{ "--inset": `${inset}px`, x: "-50%" } as CSSProperties}
+            style={{ x: "-50%" }}
             {...grow(0.9)}
           >
             <WarmTooltipGroup>
@@ -115,11 +100,6 @@ export default function Pane({
           </motion.div>
         )}
       </AnimatePresence>
-      {!path ? (
-        <Assistant key="page" mode="page" context={context} active={active} inset={inset} onopen={onopen} />
-      ) : (
-        docked && <Assistant key="dock" mode="dock" context={context} active={active} onopen={onopen} onpin={onpin} />
-      )}
     </>
   );
 }

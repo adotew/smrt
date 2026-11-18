@@ -13,13 +13,10 @@ export interface MarkdownEditorHandle {
 export default function MarkdownEditor({
   ref,
   path,
-  inset = 0,
   onerror,
 }: {
   ref?: Ref<MarkdownEditorHandle>;
   path: string;
-  /** Width on the left covered by the floating sidebar. */
-  inset?: number;
   onerror: (error: unknown) => void;
 }) {
   /** Null until the file has loaded, so a file that failed to load is never overwritten. */
@@ -66,7 +63,7 @@ export default function MarkdownEditor({
   }, []);
 
   return (
-    <div className="markdown" style={{ paddingLeft: inset }}>
+    <div className="markdown">
       {initial != null && (
         <Markdown
           ref={editor}
