@@ -1,12 +1,12 @@
 import { useEffect, useImperativeHandle, useRef, useState, type Ref } from "react";
-import type { Card } from "../electron/library.ts";
-import { Button } from "$lib/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "$lib/components/ui/toggle-group";
-import EmptyState from "./EmptyState.tsx";
-import FlipCard from "./FlipCard.tsx";
-import Icon from "./Icon.tsx";
-import Markdown from "./Markdown.tsx";
-import { isDue, ratings, schedule, type Rating } from "./review.ts";
+import type { Card } from "../../electron/library.ts";
+import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import EmptyState from "../components/EmptyState.tsx";
+import FlipCard from "../components/FlipCard.tsx";
+import Icon from "../components/Icon.tsx";
+import Markdown from "../components/Markdown.tsx";
+import { isDue, ratings, schedule, type Rating } from "../lib/review.ts";
 
 const api = window.smrt;
 

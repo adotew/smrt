@@ -3,13 +3,13 @@ import { flushSync } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import type { Command } from "../electron/main.ts";
 import type { Folder } from "../electron/library.ts";
-import ContextMenu, { contextMenu } from "./ContextMenu.tsx";
-import EmptyState from "./EmptyState.tsx";
-import FileIcon from "./FileIcon.tsx";
-import Icon, { IconButton } from "./Icon.tsx";
-import { assistant, useAssistant } from "./assistant.ts";
-import Pane, { fileType, type PaneHandle } from "./Pane.tsx";
-import { ease } from "./transitions.ts";
+import ContextMenu, { contextMenu } from "./components/ContextMenu.tsx";
+import EmptyState from "./components/EmptyState.tsx";
+import FileIcon from "./components/FileIcon.tsx";
+import Icon, { IconButton } from "./components/Icon.tsx";
+import { assistant, useAssistant } from "./lib/assistant.ts";
+import Pane, { fileType, type PaneHandle } from "./components/Pane.tsx";
+import { ease } from "./lib/transitions.ts";
 
 const api = window.smrt;
 

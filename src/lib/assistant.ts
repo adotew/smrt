@@ -1,7 +1,7 @@
 import { Chat } from "@ai-sdk/react";
 import type { ChatTransport, UIMessage, UIMessageChunk } from "ai";
 import { useSyncExternalStore } from "react";
-import type { Folder } from "../electron/library.ts";
+import type { Folder } from "../../electron/library.ts";
 
 // Pinned rather than Claude Code's aliases, so the label names the version that answers.
 export const models = [

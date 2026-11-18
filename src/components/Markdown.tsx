@@ -10,8 +10,8 @@ import { PluginKey, type EditorState } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
 import Suggestion, { exitSuggestion, type SuggestionProps } from "@tiptap/suggestion";
 import Icon, { type IconName } from "./Icon.tsx";
-import { Details, DetailsContent, DetailsSummary } from "./details.ts";
-import { pickImage, shrinkImage } from "./image.ts";
+import { Details, DetailsContent, DetailsSummary } from "../lib/details.ts";
+import { pickImage, shrinkImage } from "../lib/image.ts";
 
 /** A block type offered by the slash menu and, with `is`, by the toolbar's Turn Into menu. */
 interface Block {

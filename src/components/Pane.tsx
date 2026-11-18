@@ -1,15 +1,15 @@
 import { useImperativeHandle, useRef, useState, type CSSProperties, type Ref } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import Assistant from "./Assistant.tsx";
-import { useAssistant } from "./assistant.ts";
-import Deck, { type DeckHandle } from "./Deck.tsx";
-import Html from "./Html.tsx";
+import Assistant from "../views/Assistant.tsx";
+import { useAssistant } from "../lib/assistant.ts";
+import Deck, { type DeckHandle } from "../views/Deck.tsx";
+import Html from "../views/Html.tsx";
 import { IconButton } from "./Icon.tsx";
-import { WarmTooltipGroup } from "$lib/components/ui/warm-tooltip";
+import { WarmTooltipGroup } from "@/components/ui/warm-tooltip";
 import MarkdownEditor, { type MarkdownEditorHandle } from "./MarkdownEditor.tsx";
-import QuizFile from "./QuizFile.tsx";
-import Reader, { type ReaderHandle } from "./Reader.tsx";
-import { grow } from "./transitions.ts";
+import QuizFile from "../views/QuizFile.tsx";
+import Reader, { type ReaderHandle } from "../views/Reader.tsx";
+import { grow } from "../lib/transitions.ts";
 
 export interface PaneHandle {
   /** Lets pending markdown and deck saves land before their file moves. */

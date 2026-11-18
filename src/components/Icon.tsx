@@ -1,5 +1,5 @@
 import type { SVGProps } from "react";
-import WarmTooltip from "$lib/components/ui/warm-tooltip";
+import WarmTooltip from "@/components/ui/warm-tooltip";
 
 // Heroicons 24px outline.
 const paths = {

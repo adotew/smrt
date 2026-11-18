@@ -13,12 +13,12 @@ import {
 import { flushSync } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import type { PageViewport, PDFDocumentProxy, PDFPageProxy, RenderTask } from "pdfjs-dist";
-import type { Annotations, Notes, PageEdit, PageImage, PageNote, Rect, Versions } from "../electron/library.ts";
-import { contextMenu, type MenuItem } from "./ContextMenu.tsx";
-import Icon from "./Icon.tsx";
-import { pickImage, shrinkImage } from "./image.ts";
-import { openPDF, pdfjs } from "./pdf.ts";
-import { grow, slide } from "./transitions.ts";
+import type { Annotations, Notes, PageEdit, PageImage, PageNote, Rect, Versions } from "../../electron/library.ts";
+import { contextMenu, type MenuItem } from "../components/ContextMenu.tsx";
+import Icon from "../components/Icon.tsx";
+import { pickImage, shrinkImage } from "../lib/image.ts";
+import { openPDF, pdfjs } from "../lib/pdf.ts";
+import { grow, slide } from "../lib/transitions.ts";
 
 interface Sheet {
   pdfPage: PDFPageProxy;

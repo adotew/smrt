@@ -1,4 +1,4 @@
-import type { Card, Review } from "../electron/library.ts";
+import type { Card, Review } from "../../electron/library.ts";
 
 export const ratings = ["again", "hard", "good", "easy"] as const;
 export type Rating = (typeof ratings)[number];

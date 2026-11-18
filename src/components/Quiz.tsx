@@ -1,8 +1,8 @@
 import { Fragment, useState } from "react";
 import { Streamdown } from "streamdown";
-import { Button } from "$lib/components/ui/button";
+import { Button } from "@/components/ui/button";
 import Icon, { streamdownIcons } from "./Icon.tsx";
-import { isCorrect, type Quiz as QuizData } from "./quiz.ts";
+import { isCorrect, type Quiz as QuizData } from "../lib/quiz.ts";
 
 export default function Quiz({ quiz, compact = false }: { quiz: QuizData; compact?: boolean }) {
   /** The question being answered; past the last one, the score shows. */

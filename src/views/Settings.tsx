@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import type { Account } from "../electron/assistant.ts";
-import type { Theme } from "../electron/main.ts";
-import { Button } from "$lib/components/ui/button";
-import { ToggleGroup, ToggleGroupItem } from "$lib/components/ui/toggle-group";
+import type { Account } from "../../electron/assistant.ts";
+import type { Theme } from "../../electron/main.ts";
+import { Button } from "@/components/ui/button";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const api = window.smrt;
 

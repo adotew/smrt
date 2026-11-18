@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import EmptyState from "./EmptyState.tsx";
-import Quiz from "./Quiz.tsx";
-import { parseQuiz, type Quiz as QuizData } from "./quiz.ts";
+import EmptyState from "../components/EmptyState.tsx";
+import Quiz from "../components/Quiz.tsx";
+import { parseQuiz, type Quiz as QuizData } from "../lib/quiz.ts";
 
 export default function QuizFile({ path, inset = 0, onerror }: { path: string; inset?: number; onerror: (error: unknown) => void }) {
   /** Undefined until the file has loaded, null when it doesn't hold a quiz. */

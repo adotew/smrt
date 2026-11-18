@@ -5,8 +5,8 @@ import { useChat } from "@ai-sdk/react";
 import { getToolName, isToolUIPart, type UIMessage } from "ai";
 import { defaultFilter } from "cmdk";
 import { Streamdown } from "streamdown";
-import { Button } from "$lib/components/ui/button";
-import { Command, CommandItem, CommandList } from "$lib/components/ui/command";
+import { Button } from "@/components/ui/button";
+import { Command, CommandItem, CommandList } from "@/components/ui/command";
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -14,14 +14,14 @@ import {
   MessageScrollerItem,
   MessageScrollerProvider,
   MessageScrollerViewport,
-} from "$lib/components/ui/message-scroller";
-import { assistant, chat, models, useAssistant } from "./assistant.ts";
-import { contextMenu } from "./ContextMenu.tsx";
-import FileIcon from "./FileIcon.tsx";
-import Icon, { streamdownIcons, type IconName } from "./Icon.tsx";
-import Quiz from "./Quiz.tsx";
-import { parseQuiz, quizSegments } from "./quiz.ts";
-import { grow } from "./transitions.ts";
+} from "@/components/ui/message-scroller";
+import { assistant, chat, models, useAssistant } from "../lib/assistant.ts";
+import { contextMenu } from "../components/ContextMenu.tsx";
+import FileIcon from "../components/FileIcon.tsx";
+import Icon, { streamdownIcons, type IconName } from "../components/Icon.tsx";
+import Quiz from "../components/Quiz.tsx";
+import { parseQuiz, quizSegments } from "../lib/quiz.ts";
+import { grow } from "../lib/transitions.ts";
 
 type Part = UIMessage["parts"][number];
 

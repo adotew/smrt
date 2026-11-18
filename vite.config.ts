@@ -14,5 +14,5 @@ export default defineConfig({
   // Electron loads the build from file://, so asset URLs must be relative.
   base: "./",
   plugins: [tailwindcss(), react(), devScripts],
-  resolve: { alias: { $lib: fileURLToPath(new URL("./src/lib", import.meta.url)) } },
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
 });
