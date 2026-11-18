@@ -133,7 +133,7 @@ xcrun notarytool store-credentials smrt --apple-id <apple-id> --team-id 4QXWK32F
 3. Publish it as a release tagged with the version:
 
    ```sh
-   gh release create v1.0.1 release/Smrt-1.0.1-arm64.dmg --title "Smrt 1.0.1" --notes "…"
+   gh release create v1.0.2 release/Smrt-1.0.2-arm64.dmg --title "Smrt 1.0.2" --notes "…"
    ```
 
 Installed copies compare their version with the latest release's tag and offer the update.
