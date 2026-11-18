@@ -29,6 +29,8 @@
   let cards = $state<Card[] | null>(null);
   /** Ids of the cards left in this study session, the shown one first. */
   let queue = $state<string[]>([]);
+  /** How many cards this study session started with, for the progress bar. */
+  let total = $state(0);
   let revealed = $state(false);
   /** Decks open in study mode. */
   let editing = $state(false);
@@ -104,6 +106,7 @@
     editing = false;
     revealed = false;
     queue = studyable.filter((card) => all || isDue(card)).map((card) => card.id);
+    total = queue.length;
   }
 
   const ratingStyles = {
@@ -141,6 +144,19 @@
   {:else if cards && !editing}
     <div class="mx-auto flex min-h-full max-w-2xl flex-col justify-center gap-6 px-10 py-14">
       {#if studying}
+        <div
+          class="bg-muted h-1.5 overflow-hidden rounded-full"
+          role="progressbar"
+          aria-label="Cards Done"
+          aria-valuemin={0}
+          aria-valuemax={total}
+          aria-valuenow={total - queue.length}
+        >
+          <div
+            class="bg-primary h-full rounded-full [transition:width_var(--motion)]"
+            style:width="{((total - queue.length) / total) * 100}%"
+          ></div>
+        </div>
         {#key studying.id}
           <FlipCard class="aspect-[3/2] w-full" bind:flipped={revealed}>
             {#snippet front()}
@@ -164,8 +180,7 @@
               <Icon name={icon} />
             </Button>
           {/each}
-          </div>
-        <span class="text-muted-foreground -mt-2 text-center text-sm tabular-nums">{queue.length} left</span>
+        </div>
       {:else if studyable.length}
         <div class="flex flex-col items-center gap-3 text-center">
           <p class="m-0 text-lg font-medium">All caught up</p>
