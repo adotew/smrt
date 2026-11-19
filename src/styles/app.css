@@ -23,16 +23,17 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #1e1e1e;
-    --sidebar: #262626;
-    --separator: rgb(255 255 255 / 0.1);
+    /* Cursor Dark: #181818 for content, #141414 for the chrome around it. */
+    --background: #181818;
+    --sidebar: #141414;
+    --separator: rgb(240 240 240 / 0.075);
     --label: rgb(255 255 255 / 0.55);
     --tertiary: rgb(255 255 255 / 0.3);
-    --hover: rgb(255 255 255 / 0.06);
+    --hover: rgb(240 240 240 / 0.067);
     --fill: rgb(255 255 255 / 0.05);
-    --selection: rgb(255 255 255 / 0.12);
+    --selection: rgb(240 240 240 / 0.12);
     --page-shadow: 0 1px 4px rgb(0 0 0 / 0.6);
-  --note: #2a2a2a;
+    --note: #1f1f1f;
   }
 }
 

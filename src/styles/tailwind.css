@@ -45,22 +45,22 @@
 
 @media (prefers-color-scheme: dark) {
 :root {
-	--foreground: oklch(0.985 0 0);
-	--card: oklch(0.205 0 0);
+	--foreground: #f0f0f0;
+	--card: #141414;
 	--card-foreground: oklch(0.985 0 0);
-	--popover: oklch(0.205 0 0);
+	--popover: #141414;
 	--popover-foreground: oklch(0.985 0 0);
 	--primary: oklch(0.922 0 0);
 	--primary-foreground: oklch(0.205 0 0);
-	--secondary: oklch(0.269 0 0);
+	--secondary: #262626;
 	--secondary-foreground: oklch(0.985 0 0);
-	--muted: oklch(0.269 0 0);
+	--muted: #262626;
 	--muted-foreground: oklch(0.708 0 0);
-	--accent: oklch(0.269 0 0);
+	--accent: #262626;
 	--accent-foreground: oklch(0.985 0 0);
 	--destructive: oklch(0.704 0.191 22.216);
-	--border: oklch(1 0 0 / 10%);
-	--input: oklch(1 0 0 / 15%);
+	--border: rgb(240 240 240 / 0.075);
+	--input: rgb(240 240 240 / 0.075);
 	--ring: oklch(0.556 0 0);
 	--chart-1: oklch(0.87 0 0);
 	--chart-2: oklch(0.556 0 0);
