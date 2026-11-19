@@ -129,12 +129,17 @@ xcrun notarytool store-credentials smrt --apple-id <apple-id> --team-id 4QXWK32F
 ## Release
 
 1. Bump `version` in `package.json`, commit and push.
-2. Build the disk image: `npm run dmg`.
-3. Publish it as a release tagged with the version:
+2. Push a tag matching the version:
 
    ```sh
-   gh release create v1.0.3 release/Smrt-1.0.3-arm64.dmg --title "Smrt 1.0.3" --notes "…"
+   git tag v1.0.3 && git push origin v1.0.3
    ```
+
+The `Release` workflow then builds, signs and notarizes the disk image and publishes it as a GitHub
+release. It needs these repository secrets: `APPLE_CERTIFICATE_P12` (the Developer ID Application
+certificate exported as `.p12`, base64-encoded), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID` and
+`APPLE_APP_PASSWORD` (an app-specific password). To release by hand instead, run `npm run dmg` and
+`gh release create`.
 
 Installed copies compare their version with the latest release's tag and offer the update.
 
