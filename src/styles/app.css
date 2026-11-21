@@ -213,8 +213,15 @@ main:not(.sidebar-hidden) #window-controls {
   width: 240px;
 }
 
-#window-controls button {
+#window-controls button,
+#assistant-toggle button {
   -webkit-app-region: no-drag;
+}
+
+#window-controls .icon-button,
+#assistant-toggle .icon-button {
+  width: 28px;
+  height: 28px;
 }
 
 #assistant-toggle {
@@ -232,19 +239,31 @@ main:not(.sidebar-hidden) #window-controls {
   height: var(--dv-tabs-and-actions-container-height);
 }
 
+.sidebar-hidden .drag-strip {
+  left: 36px;
+}
+
+.sidebar-hidden.windowed .drag-strip {
+  left: 114px;
+}
+
+.assistant-hidden .drag-strip {
+  right: 36px;
+}
+
 /* Room for the controls over the top-left group's tabs (the one first in every split) and the top-right one's, while their sidebar is hidden. */
 .sidebar-hidden .dv-groupview:not(.dv-view:not(:first-child) *) > .dv-tabs-and-actions-container {
-  padding-left: 52px;
+  padding-left: 44px;
 }
 
 .sidebar-hidden.windowed .dv-groupview:not(.dv-view:not(:first-child) *) > .dv-tabs-and-actions-container {
-  padding-left: 130px;
+  padding-left: 122px;
 }
 
 .assistant-hidden
   .dv-groupview:not(.dv-horizontal > .dv-view-container > .dv-view:not(:last-child) *):not(.dv-vertical > .dv-view-container > .dv-view:not(:first-child) *)
   > .dv-tabs-and-actions-container {
-  padding-right: 52px;
+  padding-right: 44px;
 }
 
 #sidebar,

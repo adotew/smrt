@@ -2,7 +2,6 @@ import { createContext, useContext, useEffect, useRef, useState, type RefObject 
 import { flushSync } from "react-dom";
 import { AnimatePresence, motion } from "motion/react";
 import {
-  DockviewDefaultTab,
   DockviewReact,
   themeLight,
   type DockviewApi,
@@ -61,13 +60,51 @@ function FilePanel({ api: panel, params }: IDockviewPanelProps<{ path: string }>
 
 const components = { file: FilePanel };
 
-/** Dockview's own tab, which keeps closing and middle-clicking, with the file's icon before its name, as in VS Code. */
-const FileTab = (props: IDockviewPanelHeaderProps<{ path: string }>) => (
-  <div className="file-tab">
-    <FileIcon type={fileType(props.params.path)} size={16} />
-    <DockviewDefaultTab {...props} />
-  </div>
-);
+/** File tab with its icon before its name (as in VS Code), middle-click closing, and a Solar close button. */
+function FileTab({ api: panel, params }: IDockviewPanelHeaderProps<{ path: string }>) {
+  const [name, setName] = useState(panel.title ?? "");
+  const middle = useRef(false);
+
+  useEffect(() => {
+    setName(panel.title ?? "");
+    const disposable = panel.onDidTitleChange((event) => setName(event.title));
+    return () => disposable.dispose();
+  }, [panel]);
+
+  return (
+    <div
+      className="dv-default-tab file-tab"
+      onPointerDown={(event) => {
+        middle.current = event.button === 1;
+      }}
+      onPointerUp={(event) => {
+        if (middle.current && event.button === 1) {
+          middle.current = false;
+          event.preventDefault();
+          panel.close();
+        }
+      }}
+      onPointerLeave={() => {
+        middle.current = false;
+      }}
+    >
+      <FileIcon type={fileType(params.path)} size={16} />
+      <span className="dv-default-tab-content">{name}</span>
+      <button
+        type="button"
+        className="dv-default-tab-action"
+        aria-label="Close tab"
+        onPointerDown={(event) => event.preventDefault()}
+        onClick={(event) => {
+          event.preventDefault();
+          panel.close();
+        }}
+      >
+        <Icon name="close" size={14} />
+      </button>
+    </div>
+  );
+}
 const Watermark = () => (
   <>
     <div className="drag-strip"></div>
@@ -385,20 +422,6 @@ export default function App() {
   return (
     <>
       <main className={`${windowed ? "windowed" : ""} ${showingSidebar ? "" : "sidebar-hidden"} ${showingAssistant ? "" : "assistant-hidden"}`}>
-        <div id="window-controls">
-          <IconButton name="sidebar" title={showingSidebar ? "Hide Sidebar" : "Show Sidebar"} onClick={toggleSidebar} />
-          {showingSidebar && (
-            <>
-              <IconButton name="newFolder" title="New Folder" onClick={newFolder} />
-              <IconButton name="add" title="Add to Folder" onClick={() => folderPath && folderMenu(folderPath)} disabled={!folderPath} />
-            </>
-          )}
-        </div>
-        {!showingAssistant && (
-          <div id="assistant-toggle">
-            <IconButton name="sparkles" title="Assistant (⌘J)" onClick={() => setShowingAssistant(true)} />
-          </div>
-        )}
         <aside id="sidebar" hidden={!showingSidebar}>
           {folders.length === 0 ? (
             <EmptyState icon="newFolder" title="Create a folder" action={{ label: "New Folder", run: newFolder }} />
@@ -457,6 +480,21 @@ export default function App() {
         <aside id="assistant" hidden={!showingAssistant}>
           <Assistant context={filePath} open={showingAssistant} onOpenChange={setShowingAssistant} onopen={openFile} />
         </aside>
+        {/* Rendered after #dock so Electron's DOM-order app-region hit test keeps these buttons clickable over drag regions. */}
+        <div id="window-controls">
+          <IconButton name="sidebar" size={16} title={showingSidebar ? "Hide Sidebar" : "Show Sidebar"} onClick={toggleSidebar} />
+          {showingSidebar && (
+            <>
+              <IconButton name="newFolder" size={16} title="New Folder" onClick={newFolder} />
+              <IconButton name="add" size={16} title="Add to Folder" onClick={() => folderPath && folderMenu(folderPath)} disabled={!folderPath} />
+            </>
+          )}
+        </div>
+        {!showingAssistant && (
+          <div id="assistant-toggle">
+            <IconButton name="sparkles" size={16} title="Assistant (⌘J)" onClick={() => setShowingAssistant(true)} />
+          </div>
+        )}
       </main>
 
       <ContextMenu />
