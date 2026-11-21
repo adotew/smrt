@@ -1145,6 +1145,15 @@ dialog .primary {
   height: 100%;
 }
 
+.dv-tab .file-tab .dv-default-tab-action {
+  visibility: hidden;
+}
+
+.dv-tab:hover .file-tab .dv-default-tab-action,
+.dv-tab .file-tab .dv-default-tab-action:focus-visible {
+  visibility: visible;
+}
+
 /* Dimmed with the tab's label, so only the shown file's icon is in full colour. */
 .dv-inactive-tab .file-tab .file-icon {
   opacity: 0.6;
