@@ -48,7 +48,7 @@ const libraryPath = path.join(app.getPath("userData"), "Library");
 const swiftLibrary = path.join(app.getPath("appData"), "macpdf");
 if (!fs.existsSync(libraryPath) && fs.existsSync(swiftLibrary)) fs.cpSync(swiftLibrary, libraryPath, { recursive: true });
 // Undo history lasts one session, so earlier versions are cleared on launch.
-const versionsPath = path.join(app.getPath("temp"), "Smrt Versions");
+const versionsPath = path.join(app.getPath("userData"), "Versions");
 fs.rmSync(versionsPath, { recursive: true, force: true });
 const settingsPath = path.join(app.getPath("userData"), "settings.json");
 function readTheme(): Theme {
@@ -86,12 +86,13 @@ async function checkForUpdates(window: BrowserWindow, quiet: boolean) {
   try {
     update = await newerRelease(current);
   } catch (error) {
-    if (!quiet) {
+    if (!quiet && !window.isDestroyed()) {
       const detail = error instanceof Error ? error.message : String(error);
       await dialog.showMessageBox(window, { type: "warning", message: "Smrt couldn't check for updates.", detail });
     }
     return;
   }
+  if (window.isDestroyed()) return;
   if (update) {
     const { response } = await dialog.showMessageBox(window, {
       message: `Smrt ${update.version} is available`,
@@ -107,6 +108,7 @@ async function checkForUpdates(window: BrowserWindow, quiet: boolean) {
 }
 
 let settingsWindow: BrowserWindow | null = null;
+let stopLogin = () => {};
 function openSettings() {
   if (settingsWindow) return settingsWindow.focus();
   settingsWindow = new BrowserWindow({
@@ -121,7 +123,10 @@ function openSettings() {
     webPreferences: { preload: path.join(__dirname, "preload.cjs") },
   });
   settingsWindow.setMenuBarVisibility(false);
-  settingsWindow.on("closed", () => (settingsWindow = null));
+  settingsWindow.on("closed", () => {
+    settingsWindow = null;
+    stopLogin();
+  });
   load(settingsWindow, "settings");
 }
 
@@ -139,11 +144,23 @@ function load(window: BrowserWindow, hash?: string) {
 }
 
 function buildMenu(window: BrowserWindow) {
-  const send = (command: Command) => () => window.webContents.send("command", command);
-  // Inside an HTML page's frame, undo belongs to the page.
-  const undoable = (command: "undo" | "redo") => () =>
-    window.webContents.focusedFrame?.parent ? window.webContents[command]() : send(command)();
-  const checkItem = { label: "Check for Updates…", click: () => checkForUpdates(window, false) };
+  const send = (command: Command) => () => {
+    if (!window.isDestroyed()) window.webContents.send("command", command);
+  };
+  // Inside an HTML page's frame or another window (such as Settings), undo belongs to that webContents.
+  const undoable = (command: "undo" | "redo") => () => {
+    const focused = BrowserWindow.getFocusedWindow();
+    if (!focused) return;
+    if (focused !== window || focused.webContents.focusedFrame?.parent) focused.webContents[command]();
+    else send(command)();
+  };
+  const checkItem = {
+    label: "Check for Updates…",
+    click: () => {
+      const target = BrowserWindow.getFocusedWindow() ?? (!window.isDestroyed() ? window : null);
+      if (target) checkForUpdates(target, false);
+    },
+  };
   const settingsItem = { label: "Settings…", accelerator: "CmdOrCtrl+,", click: openSettings };
   const appMenu: MenuItemConstructorOptions = {
     label: app.name,
@@ -207,7 +224,11 @@ function buildMenu(window: BrowserWindow) {
 /** Everything the renderer may invoke; preload.ts exposes these as `window.smrt`. */
 function createHandlers(window: BrowserWindow) {
   const { inLibrary: _inLibrary, urlFile: _urlFile, ...exposed } = library;
-  const assistant = createAssistant(libraryPath, htmlGuide, (chunk) => window.webContents.send("assistant", chunk));
+  const assistant = createAssistant(libraryPath, htmlGuide, (chunk) => {
+    if (!window.isDestroyed()) window.webContents.send("assistant", chunk);
+  });
+  window.on("closed", () => assistant.stop());
+  stopLogin = assistant.killLogin;
   return {
     ...exposed,
     askAssistant: assistant.ask,
@@ -254,7 +275,10 @@ app.whenReady().then(() => {
     webPreferences: { preload: path.join(__dirname, "preload.cjs") },
   });
   buildMenu(window);
-  app.on("second-instance", () => window.show());
+  app.on("second-instance", () => {
+    if (!window.isDestroyed()) window.show();
+    else settingsWindow?.show();
+  });
 
   for (const [channel, fn] of Object.entries(createHandlers(window))) {
     ipcMain.handle(channel, (_event, ...args) => (fn as (...args: unknown[]) => unknown)(...args));
@@ -278,4 +302,5 @@ function windowBackground() {
   return nativeTheme.shouldUseDarkColors ? "#1e1e1e" : "#fff";
 }
 
+app.on("before-quit", () => stopLogin());
 app.on("window-all-closed", () => app.quit());

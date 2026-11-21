@@ -18,6 +18,7 @@ import { assistant, chat, models, useAssistant } from "../lib/assistant.ts";
 import { contextMenu } from "../components/ContextMenu.tsx";
 import FileIcon from "../components/FileIcon.tsx";
 import Icon, { streamdownIcons, type IconName } from "../components/Icon.tsx";
+import { fileType } from "../components/Pane.tsx";
 import Quiz from "../components/Quiz.tsx";
 import { parseQuiz, quizSegments } from "../lib/quiz.ts";
 
@@ -25,8 +26,6 @@ type Part = UIMessage["parts"][number];
 
 const fileName = (path: string) => path.split(/[\\/]/).pop()!;
 const baseName = (path: string) => fileName(path).replace(/\.(pdf|md|cards|quiz|html)$/i, "");
-const fileType = (path: string) =>
-  /\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : /\.quiz$/i.test(path) ? "quiz" : /\.html$/i.test(path) ? "html" : "pdf";
 const filesOf = (message: UIMessage) => (message.metadata as { files?: string[] } | undefined)?.files ?? [];
 const textOf = (message: UIMessage) => message.parts.map((p) => (p.type === "text" ? p.text : "")).join("");
 const toolIcons: Record<string, IconName> = {
@@ -401,11 +400,10 @@ export default function Assistant({
           {/* Keeps focus in the textarea, which drives the list. */}
           <CommandList ref={mentionList} onPointerDown={(event) => event.preventDefault()}>
             {mentionMatches.map((file) => (
-              // The last svg is the item's check mark, which a file list has no use for.
               <CommandItem
                 key={file.path}
                 value={file.path}
-                className="rounded-lg data-selected:bg-(--hover) [&>svg:last-child]:hidden"
+                className="rounded-lg data-selected:bg-(--hover)"
                 onSelect={() => mention(file.path)}
               >
                 <FileIcon type={fileType(file.path)} size={16} />

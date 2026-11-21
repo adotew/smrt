@@ -13,19 +13,24 @@ export interface MarkdownEditorHandle {
 export default function MarkdownEditor({
   ref,
   path,
+  revision = 0,
   onerror,
 }: {
   ref?: Ref<MarkdownEditorHandle>;
   path: string;
+  /** Bumped when the assistant writes the file, so the editor reloads without flushing stale text over it. */
+  revision?: number;
   onerror: (error: unknown) => void;
 }) {
   /** Null until the file has loaded, so a file that failed to load is never overwritten. */
   const [initial, setInitial] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(0);
   const text = useRef<string | null>(null);
   const editor = useRef<MarkdownHandle>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   /** Saves run one after another so an older one never lands last. */
   const saving = useRef<Promise<void>>(Promise.resolve());
+  const mounted = useRef(false);
 
   function save() {
     clearTimeout(timer.current);
@@ -47,25 +52,44 @@ export default function MarkdownEditor({
   }));
 
   useEffect(() => {
-    (async () => {
-      try {
-        text.current = await api.readMarkdown(path);
-        setInitial(text.current);
-      } catch (error) {
-        onerror(error);
-      }
-    })();
-    window.addEventListener("beforeunload", flush);
+    const onbeforeunload = () => void flush();
+    window.addEventListener("beforeunload", onbeforeunload);
     return () => {
-      window.removeEventListener("beforeunload", flush);
+      window.removeEventListener("beforeunload", onbeforeunload);
       flush();
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const reload = mounted.current;
+    mounted.current = true;
+    if (reload) {
+      clearTimeout(timer.current);
+      timer.current = undefined;
+    }
+    (async () => {
+      if (reload) await saving.current;
+      try {
+        const content = await api.readMarkdown(path);
+        if (cancelled) return;
+        text.current = content;
+        setInitial(content);
+        setLoaded((n) => n + 1);
+      } catch (error) {
+        if (!cancelled) onerror(error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [revision]);
 
   return (
     <div className="markdown">
       {initial != null && (
         <Markdown
+          key={loaded}
           ref={editor}
           className="markdown-content"
           value={initial}

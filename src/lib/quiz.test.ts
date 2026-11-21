@@ -69,4 +69,9 @@ test("a reply splits into markdown and quiz blocks, finished or still streaming"
   assert.deepEqual(quizSegments("```quiz"), [{ type: "quiz", text: "", complete: false }]);
   assert.deepEqual(quizSegments('```quiz\n{"questions": ['), [{ type: "quiz", text: '{"questions": [', complete: false }]);
   assert.deepEqual(quizSegments("```quizzes\nx\n```"), [{ type: "text", text: "```quizzes\nx\n```" }]);
+  assert.deepEqual(quizSegments('Before\r\n```quiz\r\n{"a": 1}\r\n```\r\nAfter'), [
+    { type: "text", text: "Before\r\n" },
+    { type: "quiz", text: '{"a": 1}\r\n', complete: true },
+    { type: "text", text: "\nAfter" },
+  ]);
 });

@@ -263,3 +263,36 @@ test("decks are created, saved, listed, renamed and validated", async () => {
   assert.throws(() => library.readQuiz(pdf), /isn.t a quiz/);
   assert.deepEqual(library.listLibrary()[0].quizzes.map((f) => f.name), ["Test.quiz"]);
 });
+
+test("symlinks pointing outside the library are rejected", () => {
+  const { dir, library } = setup();
+  const folder = library.createFolder("Web");
+  const outside = path.join(dir, "secret.html");
+  fs.writeFileSync(outside, "<p>secret</p>");
+  const link = path.join(folder, "escape.html");
+  const dangling = path.join(folder, "dangling.md");
+  fs.symlinkSync(outside, link);
+  fs.symlinkSync(path.join(dir, "future.md"), dangling);
+
+  assert.throws(() => library.inLibrary(link), /outside the library/);
+  assert.throws(() => library.inLibrary(dangling), /outside the library/);
+  const url = (file: string) => `smrt-file://library/${file.split(/[\\/]/).filter(Boolean).map(encodeURIComponent).join("/")}`;
+  assert.throws(() => library.urlFile(url(link)), /outside the library/);
+});
+
+test("malformed cards inside a deck are refused and concurrent saves don't collide", async () => {
+  const { library } = setup();
+  const folder = library.createFolder("Math");
+  const deck = library.createDeck(folder, "Bad.cards");
+  for (const raw of ['{"cards": [null]}', '{"cards": [{"id": 1, "front": "a", "back": "b"}]}', '{"cards": [{"id": "a", "front": "Q"}]}']) {
+    fs.writeFileSync(deck, raw);
+    assert.throws(() => library.readDeck(deck), /could not be read/);
+  }
+  const md = library.createMarkdown(folder, "Notes.md");
+  await Promise.all(Array.from({ length: 10 }, (_, i) => library.saveMarkdown(md, `version ${i}`)));
+  assert.match(await library.readMarkdown(md), /^version \d$/);
+  assert.deepEqual(
+    fs.readdirSync(folder).filter((name) => name.includes(".tmp")),
+    [],
+  );
+});

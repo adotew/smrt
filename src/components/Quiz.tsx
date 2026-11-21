@@ -19,8 +19,10 @@ export default function Quiz({ quiz, compact = false }: { quiz: QuizData; compac
   const needsCheck = question?.type === "blank" || question?.multiple;
   const correct = !!question && isCorrect(question, answer);
 
+  const hasAnswer = (value: string | number[]) => (typeof value === "string" ? value.trim().length > 0 : value.length > 0);
+
   function check(answer: string | number[]) {
-    if (checked || !question || !answer.length) return;
+    if (checked || !question || !hasAnswer(answer)) return;
     setChecked(true);
     if (isCorrect(question, answer)) setScore((score) => score + 1);
   }
@@ -139,7 +141,7 @@ export default function Quiz({ quiz, compact = false }: { quiz: QuizData; compac
               </Button>
             ) : (
               needsCheck && (
-                <Button key="check" size="sm" disabled={!answer.length} onClick={() => check(answer)}>
+                <Button key="check" size="sm" disabled={!hasAnswer(answer)} onClick={() => check(answer)}>
                   Check
                 </Button>
               )

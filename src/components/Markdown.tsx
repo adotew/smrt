@@ -80,7 +80,7 @@ export default function Markdown({
 }) {
   const element = useRef<HTMLDivElement>(null);
   // Created outside React, as the bubble menu plugin moves it in and out of the editor.
-  const [bubble] = useState(() => Object.assign(document.createElement("div"), { className: "bubble-menu" }));
+  const [bubble] = useState(() => (editable ? Object.assign(document.createElement("div"), { className: "bubble-menu" }) : null));
   const slashMenu = useRef<HTMLDivElement>(null);
   const [slash, setSlashState] = useState<Slash | null>(null);
   const slashRef = useRef(slash);
@@ -116,27 +116,31 @@ export default function Markdown({
         DetailsSummary,
         DetailsContent,
         MarkdownExtension,
-        Placeholder.configure({
-          includeChildren: true,
-          placeholder: ({ node }) =>
-            node.type.name === "heading" ? `Heading ${node.attrs.level}` : node.type.name === "detailsSummary" ? "Toggle" : placeholder,
-        }),
-        BubbleMenu.configure({
-          element: bubble,
-          pluginKey: bubbleKey,
-          updateDelay: 0,
-          shouldShow: ({ view, state }) => (view.hasFocus() || bubble.contains(document.activeElement)) && canShowToolbar(state),
-          options: { placement: "top-start", onHide: () => setToolbarMenu(null) },
-        }),
-        SlashCommand,
-        Extension.create({
-          name: "linkShortcut",
-          addKeyboardShortcuts: () => ({ "Mod-k": () => openLink() }),
-        }),
+        ...(editable
+          ? [
+              Placeholder.configure({
+                includeChildren: true,
+                placeholder: ({ node }) =>
+                  node.type.name === "heading" ? `Heading ${node.attrs.level}` : node.type.name === "detailsSummary" ? "Toggle" : placeholder,
+              }),
+              BubbleMenu.configure({
+                element: bubble!,
+                pluginKey: bubbleKey,
+                updateDelay: 0,
+                shouldShow: ({ view, state }) => (view.hasFocus() || bubble!.contains(document.activeElement)) && canShowToolbar(state),
+                options: { placement: "top-start", onHide: () => setToolbarMenu(null) },
+              }),
+              SlashCommand,
+              Extension.create({
+                name: "linkShortcut",
+                addKeyboardShortcuts: () => ({ "Mod-k": () => openLink() }),
+              }),
+            ]
+          : []),
       ],
       content: value,
       contentType: "markdown",
-      onTransaction: () => setRevision((n) => n + 1),
+      onTransaction: editable ? () => setRevision((n) => n + 1) : undefined,
       onUpdate: ({ editor }) => latest.current.onchange?.(editor.getMarkdown()),
     });
     editorRef.current = instance;
@@ -153,6 +157,7 @@ export default function Markdown({
   }));
 
   useEffect(() => {
+    if (!editable) return;
     const showToolbarAfterSelecting = () => {
       if (!selecting.current) return;
       selecting.current = false;
@@ -336,50 +341,51 @@ export default function Markdown({
       <div
         className={className}
         ref={element}
-        onMouseDown={(event) => (selecting.current = !!editor?.view.dom.contains(event.target as Node))}
+        onMouseDown={editable ? (event) => (selecting.current = !!editor?.view.dom.contains(event.target as Node)) : undefined}
       ></div>
 
-      {createPortal(
-        <>
-          <button
-            className="turn-into"
-            title="Turn Into"
-            aria-expanded={toolbarMenu === "turnInto"}
-            onMouseDown={preventMouseDown}
-            onClick={() => setToolbarMenu(toolbarMenu === "turnInto" ? null : "turnInto")}
-          >
-            {currentBlock.title}
-            <span className="chevron-down">
-              <Icon name="chevronRight" size={12} />
-            </span>
-          </button>
-          <div className="toolbar-separator"></div>
-          {button("link", "Link", () => (toolbarMenu === "link" ? setToolbarMenu(null) : openLink()), active("link"))}
-          <div className="toolbar-separator"></div>
-          {button("bold", "Bold", () => editor?.chain().focus().toggleBold().run(), active("bold"))}
-          {button("italic", "Italic", () => editor?.chain().focus().toggleItalic().run(), active("italic"))}
-          {button("strike", "Strikethrough", () => editor?.chain().focus().toggleStrike().run(), active("strike"))}
-          {button("code", "Code", () => editor?.chain().focus().toggleCode().run(), active("code"))}
+      {bubble &&
+        createPortal(
+          <>
+            <button
+              className="turn-into"
+              title="Turn Into"
+              aria-expanded={toolbarMenu === "turnInto"}
+              onMouseDown={preventMouseDown}
+              onClick={() => setToolbarMenu(toolbarMenu === "turnInto" ? null : "turnInto")}
+            >
+              {currentBlock.title}
+              <span className="chevron-down">
+                <Icon name="chevronRight" size={12} />
+              </span>
+            </button>
+            <div className="toolbar-separator"></div>
+            {button("link", "Link", () => (toolbarMenu === "link" ? setToolbarMenu(null) : openLink()), active("link"))}
+            <div className="toolbar-separator"></div>
+            {button("bold", "Bold", () => editor?.chain().focus().toggleBold().run(), active("bold"))}
+            {button("italic", "Italic", () => editor?.chain().focus().toggleItalic().run(), active("italic"))}
+            {button("strike", "Strikethrough", () => editor?.chain().focus().toggleStrike().run(), active("strike"))}
+            {button("code", "Code", () => editor?.chain().focus().toggleCode().run(), active("code"))}
 
-          {toolbarMenu === "turnInto" ? (
-            <div className="slash-menu toolbar-dropdown" role="listbox">
-              {turnIntoBlocks.map((block) => menuItem(block, false, () => turnInto(block), undefined, block === currentBlock))}
-            </div>
-          ) : (
-            toolbarMenu === "link" && (
-              <div className="slash-menu toolbar-dropdown link-editor">
-                <input placeholder="Paste link" value={linkHref} onChange={(e) => setLinkHref(e.target.value)} onKeyDown={onLinkKeyDown} autoFocus />
-                {active("link") && (
-                  <button onMouseDown={preventMouseDown} onClick={() => applyLink("")}>
-                    Remove Link
-                  </button>
-                )}
+            {toolbarMenu === "turnInto" ? (
+              <div className="slash-menu toolbar-dropdown" role="listbox">
+                {turnIntoBlocks.map((block) => menuItem(block, false, () => turnInto(block), undefined, block === currentBlock))}
               </div>
-            )
-          )}
-        </>,
-        bubble,
-      )}
+            ) : (
+              toolbarMenu === "link" && (
+                <div className="slash-menu toolbar-dropdown link-editor">
+                  <input placeholder="Paste link" value={linkHref} onChange={(e) => setLinkHref(e.target.value)} onKeyDown={onLinkKeyDown} autoFocus />
+                  {active("link") && (
+                    <button onMouseDown={preventMouseDown} onClick={() => applyLink("")}>
+                      Remove Link
+                    </button>
+                  )}
+                </div>
+              )
+            )}
+          </>,
+          bubble,
+        )}
 
       {slash && (
         <div

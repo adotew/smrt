@@ -37,6 +37,8 @@ interface Step {
 }
 
 export interface ReaderHandle {
+  /** Saves pending notes, annotations and position and resolves once every save has finished. */
+  flush: () => Promise<void>;
   zoom: (next: number | null) => void;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -78,6 +80,10 @@ const PAGE_EDITS: Record<string, (page: number) => PageEdit> = {
 function debounce(fn: (pdf: string) => void, ms: number) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let pending: string | null = null;
+  const cancel = () => {
+    clearTimeout(timer);
+    pending = null;
+  };
   const flush = (pdf: string) => {
     clearTimeout(timer);
     if (pending !== pdf) return;
@@ -89,7 +95,7 @@ function debounce(fn: (pdf: string) => void, ms: number) {
     pending = pdf;
     timer = setTimeout(() => flush(pdf), ms);
   };
-  return Object.assign(debounced, { flush });
+  return Object.assign(debounced, { flush, cancel });
 }
 
 // pdf.js splits lines into overlapping spans; joining them stops the overlaps from darkening.
@@ -113,7 +119,9 @@ function mergeLines(rects: Rect[]) {
 
 interface Props {
   ref?: Ref<ReaderHandle>;
-  path: string | null;
+  path: string;
+  /** Only the active pane's reader handles Delete/Escape for a selected image. */
+  active?: boolean;
   showingNotes: boolean;
   placingNote?: boolean;
   onPlacingNoteChange?: (placing: boolean) => void;
@@ -130,6 +138,12 @@ export default function Reader(props: Props) {
   const onerror = (error: unknown) => latest.current.onerror(error);
   const [, update] = useReducer((n: number) => n + 1, 0);
   const container = useRef<HTMLDivElement>(null);
+  /** Saves run one after another so an older one never lands last and flush() can await them. */
+  const saving = useRef<Promise<void>>(Promise.resolve());
+  const enqueue = (run: () => Promise<void>, handleError: (error: unknown) => void = onerror) => {
+    saving.current = saving.current.then(run).catch(handleError);
+    return saving.current;
+  };
   /** Changed in place by loads, drags and typing, many times a second; `update()` shows the changes. */
   const [s] = useState(() => ({
     doc: null as PDFDocumentProxy | null,
@@ -181,29 +195,55 @@ export default function Reader(props: Props) {
             const sheet = s.sheets[Number((entry.target as HTMLElement).dataset.index)];
             if (!sheet) continue;
             sheet.visible = entry.isIntersecting;
-            if (sheet.visible) draw(sheet);
+            if (sheet.visible) {
+              draw(sheet);
+            } else {
+              sheet.task?.cancel();
+              sheet.task = null;
+              sheet.drawnScale = 0;
+              sheet.element?.replaceChildren();
+            }
           }
         },
         { rootMargin: "100% 0px" },
       ),
   );
 
-  // Saving rewrites every image in the file, so typing is saved once it pauses.
-  const [saveTyped] = useState(() =>
-    debounce((pdf: string) => {
-      if (s.annotations) api.saveAnnotations(pdf, s.annotations).catch(onerror);
-    }, 300),
-  );
+  function writeAnnotations(pdf: string) {
+    if (!s.annotations) return;
+    const snapshot = structuredClone(s.annotations);
+    enqueue(() => api.saveAnnotations(pdf, snapshot));
+  }
 
-  const [savePosition] = useState(() =>
-    debounce((pdf: string) => {
-      // Losing a reading position is harmless, so failures are ignored.
-      api.savePosition(pdf, { page: s.currentPage, scale: s.scale ?? undefined }).catch(() => {});
-    }, 400),
-  );
+  function writeNotes(pdf: string) {
+    if (!s.notes) return;
+    const snapshot = structuredClone(s.notes);
+    enqueue(() => api.saveNotes(pdf, snapshot));
+  }
+
+  function writePosition(pdf: string) {
+    const position = { page: s.currentPage, scale: s.scale ?? undefined };
+    // Losing a reading position is harmless, so failures are ignored.
+    enqueue(
+      () => api.savePosition(pdf, position),
+      () => {},
+    );
+  }
+
+  // Saving rewrites every image in the file, so typing is saved once it pauses.
+  const [saveTyped] = useState(() => debounce(writeAnnotations, 300));
+  const [saveNotes] = useState(() => debounce(writeNotes, 300));
+  const [savePosition] = useState(() => debounce(writePosition, 400));
+
+  function flush() {
+    const pdf = latest.current.path;
+    saveTyped.flush(pdf);
+    saveNotes.flush(pdf);
+    savePosition.flush(pdf);
+    return saving.current;
+  }
 
   useEffect(() => {
-    if (!path) return;
     load(path);
     return () => {
       close(path);
@@ -221,10 +261,11 @@ export default function Reader(props: Props) {
     resize.observe(element);
     // React registers wheel listeners as passive, which would ignore preventDefault.
     element.addEventListener("wheel", onwheel, { passive: false });
-    const onbeforeunload = () => latest.current.path && saveTyped.flush(latest.current.path);
+    const onbeforeunload = () => void flush();
     window.addEventListener("keydown", onkeydown);
     window.addEventListener("beforeunload", onbeforeunload);
     return () => {
+      clearTimeout(redrawTimer.current);
       resize.disconnect();
       observer.disconnect();
       element.removeEventListener("wheel", onwheel);
@@ -246,6 +287,7 @@ export default function Reader(props: Props) {
         Promise.all(Array.from({ length: opened.numPages }, (_, i) => opened.getPage(i + 1))),
         api.readPosition(pdf),
       ]);
+      if (pdf !== latest.current.path) return opened.loadingTask.destroy();
       s.doc = opened;
       s.sheets = pdfPages.map((pdfPage) => ({ pdfPage, element: null, drawnScale: 0, visible: false, task: null }));
       s.scale = position?.scale ?? null;
@@ -253,7 +295,10 @@ export default function Reader(props: Props) {
       s.anchor = { page: s.currentPage, offset: 0 };
       s.pages = pdfPages.map((page) => page.getViewport({ scale: 1 }));
       update();
-      [s.notes, s.annotations] = await Promise.all([api.readNotes(pdf), api.readAnnotations(pdf)]);
+      const [notes, annotations] = await Promise.all([api.readNotes(pdf), api.readAnnotations(pdf)]);
+      if (pdf !== latest.current.path || s.doc !== opened) return;
+      s.notes = notes;
+      s.annotations = annotations;
       update();
     } catch (error) {
       onerror(error);
@@ -262,7 +307,9 @@ export default function Reader(props: Props) {
 
   function close(pdf: string) {
     saveTyped.flush(pdf);
+    saveNotes.flush(pdf);
     savePosition.flush(pdf);
+    clearTimeout(redrawTimer.current);
     observer.disconnect();
     for (const sheet of s.sheets) sheet.task?.cancel();
     s.doc?.loadingTask.destroy();
@@ -321,7 +368,7 @@ export default function Reader(props: Props) {
 
   async function draw(sheet: Sheet) {
     const scale = effective();
-    if (sheet.drawnScale === scale || !sheet.element) return;
+    if (!sheet.visible || sheet.drawnScale === scale || !sheet.element) return;
     sheet.drawnScale = scale;
     sheet.task?.cancel();
     const viewport = sheet.pdfPage.getViewport({ scale });
@@ -329,18 +376,21 @@ export default function Reader(props: Props) {
     const canvas = document.createElement("canvas");
     canvas.width = Math.floor(viewport.width * ratio);
     canvas.height = Math.floor(viewport.height * ratio);
-    sheet.task = sheet.pdfPage.render({
+    const task = (sheet.task = sheet.pdfPage.render({
       canvas,
       canvasContext: canvas.getContext("2d")!,
       viewport,
       transform: ratio === 1 ? undefined : [ratio, 0, 0, ratio, 0, 0],
-    });
+    }));
     try {
-      await sheet.task.promise;
+      await task.promise;
     } catch (error) {
       if (error instanceof pdfjs.RenderingCancelledException) return;
       throw error;
+    } finally {
+      if (sheet.task === task) sheet.task = null;
     }
+    if (!sheet.visible || sheet.drawnScale !== scale || !sheet.element) return;
     const textLayer = document.createElement("div");
     textLayer.className = "textLayer";
     sheet.element.style.setProperty("--total-scale-factor", String(scale));
@@ -445,7 +495,7 @@ export default function Reader(props: Props) {
   async function step(from: Step[], to: Step[], version: keyof Versions) {
     const state = from.at(-1);
     const path = latest.current.path;
-    if (s.editingPages || !state || !s.annotations || !path) return;
+    if (s.editingPages || !state || !s.annotations) return;
     const versions = state.pdf;
     if (!versions) {
       from.pop();
@@ -453,7 +503,8 @@ export default function Reader(props: Props) {
       s.notes = state.notes;
       s.annotations = state.annotations;
       s.editingNote = null;
-      api.saveNotes(path, state.notes).catch(onerror);
+      saveNotes.cancel();
+      writeNotes(path);
       saveAnnotations();
       return;
     }
@@ -524,13 +575,15 @@ export default function Reader(props: Props) {
   /** Runs `change` on the file, then reloads it. */
   async function changePDF(change: (pdf: string) => Promise<void>) {
     const pdf = latest.current.path;
-    if (!pdf || s.editingPages) return;
+    if (s.editingPages) return;
     s.editingPages = true;
     try {
-      // The library moves the saved position along with the pages, so it must be current first.
+      // The library moves the saved position, notes and annotations along with the pages, so every pending save must land first.
       saveTyped.flush(pdf);
-      savePosition.flush(pdf);
-      await api.savePosition(pdf, { page: s.currentPage, scale: s.scale ?? undefined });
+      saveNotes.flush(pdf);
+      savePosition.cancel();
+      writePosition(pdf);
+      await saving.current;
       await change(pdf);
       if (pdf !== latest.current.path) return;
       close(pdf);
@@ -573,10 +626,9 @@ export default function Reader(props: Props) {
   }
 
   function editPageNote(note: PageNote, text: string) {
-    if (!path) return;
     record(note.id);
     note.text = text;
-    saveTyped(path);
+    saveTyped(latest.current.path);
     update();
   }
 
@@ -671,11 +723,14 @@ export default function Reader(props: Props) {
   }
 
   function onkeydown(event: KeyboardEvent) {
-    if (!s.selectedImage) return;
+    if (latest.current.active === false || !s.selectedImage) return;
     if (event.key === "Escape") {
       s.selectedImage = null;
       update();
-    } else if ((event.key === "Backspace" || event.key === "Delete") && !(event.target as Element).closest("input, textarea")) {
+    } else if (
+      (event.key === "Backspace" || event.key === "Delete") &&
+      !(event.target as Element).closest("input, textarea, [contenteditable]")
+    ) {
       event.preventDefault();
       removeImage(s.selectedImage);
     }
@@ -716,7 +771,7 @@ export default function Reader(props: Props) {
 
   // A note left empty is discarded, so a stray click leaves nothing behind.
   function dropEmptyNote(note: PageNote) {
-    if (path) saveTyped.flush(path);
+    saveTyped.flush(latest.current.path);
     if (s.editingNote === note.id) setEditingNote(null);
     update();
     if (note.text || !s.annotations) return;
@@ -731,20 +786,20 @@ export default function Reader(props: Props) {
   /** Saves the annotations and shows the change. */
   function saveAnnotations() {
     update();
-    const path = latest.current.path;
-    if (!path || !s.annotations) return;
-    api.saveAnnotations(path, s.annotations).catch(onerror);
+    saveTyped.cancel();
+    writeAnnotations(latest.current.path);
   }
 
   function editNote(page: number, text: string) {
-    if (!path || !s.notes) return;
+    if (!s.notes) return;
     record(`note ${page}`);
     s.notes[page] = text;
-    api.saveNotes(path, s.notes).catch(onerror);
+    saveNotes(latest.current.path);
     update();
   }
 
   useImperativeHandle(ref, () => ({
+    flush,
     zoom,
     zoomIn: () => zoom(effective() * 1.25),
     zoomOut: () => zoom(effective() / 1.25),

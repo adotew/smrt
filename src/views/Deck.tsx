@@ -26,17 +26,21 @@ const ratingStyles = {
 export default function Deck({
   ref,
   path,
+  revision = 0,
   active = true,
   onerror,
 }: {
   ref?: Ref<DeckHandle>;
   path: string;
+  /** Bumped when the assistant writes the deck, so it reloads without flushing stale edits over it. */
+  revision?: number;
   /** Only the active pane's deck answers the keyboard. */
   active?: boolean;
   onerror: (error: unknown) => void;
 }) {
   /** Null until the deck has loaded, so a deck that failed to load is never overwritten. */
   const [cards, setCardsState] = useState<Card[] | null>(null);
+  const [loaded, setLoaded] = useState(0);
   // Saves and editor callbacks read the latest cards, which may not have rendered yet.
   const cardsRef = useRef(cards);
   const setCards = (next: Card[]) => {
@@ -59,6 +63,7 @@ export default function Deck({
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   /** Saves run one after another so an older one never lands last. */
   const saving = useRef<Promise<void>>(Promise.resolve());
+  const mounted = useRef(false);
 
   const name = path.split(/[\\/]/).pop()?.replace(/\.cards$/i, "");
   const studyableOf = (cards: Card[] | null) => cards?.filter((card) => card.front.trim() || card.back.trim()) ?? [];
@@ -83,16 +88,6 @@ export default function Deck({
   useImperativeHandle(ref, () => ({ flush, startEditing: () => setEditing(true) }));
 
   useEffect(() => {
-    (async () => {
-      try {
-        const loaded = (await api.readDeck(path)).cards;
-        setCards(loaded);
-        // The sidebar's Edit Cards may have asked for editing before the deck loaded.
-        if (!editingRef.current) study(false, loaded);
-      } catch (error) {
-        onerror(error);
-      }
-    })();
     const onbeforeunload = () => void flush();
     window.addEventListener("beforeunload", onbeforeunload);
     return () => {
@@ -100,6 +95,32 @@ export default function Deck({
       flush();
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const reload = mounted.current;
+    mounted.current = true;
+    if (reload) {
+      clearTimeout(timer.current);
+      timer.current = undefined;
+    }
+    (async () => {
+      if (reload) await saving.current;
+      try {
+        const next = (await api.readDeck(path)).cards;
+        if (cancelled) return;
+        setCards(next);
+        setLoaded((n) => n + 1);
+        // The sidebar's Edit Cards may have asked for editing before the deck loaded.
+        if (!editingRef.current) study(false, next);
+      } catch (error) {
+        if (!cancelled) onerror(error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [revision]);
 
   function edit(id: string, side: "front" | "back", text: string) {
     setCards(cardsRef.current!.map((card) => (card.id === id ? { ...card, [side]: text } : card)));
@@ -147,7 +168,7 @@ export default function Deck({
     function onkeydown(event: KeyboardEvent) {
       // The focused card flips itself on Space and prevents the default.
       if (event.defaultPrevented || !active || editing || !studying || event.metaKey || event.ctrlKey || event.altKey) return;
-      if ((event.target as Element).closest("input, textarea, dialog")) return;
+      if ((event.target as Element).closest("input, textarea, dialog, button, a, [contenteditable]")) return;
       if (event.key === " ") setRevealed((revealed) => !revealed);
       else if (/^[1-4]$/.test(event.key)) rate(ratings[Number(event.key) - 1]);
       else return;
@@ -179,7 +200,7 @@ export default function Deck({
                 ></div>
               </div>
               <FlipCard
-                key={studying.id}
+                key={`${studying.id}-${loaded}`}
                 className="aspect-[3/2] w-full"
                 flipped={revealed}
                 onFlippedChange={setRevealed}
@@ -249,7 +270,7 @@ export default function Deck({
                     <ToggleGroupItem value="back">Back</ToggleGroupItem>
                   </ToggleGroup>
                   <Markdown
-                    key={side}
+                    key={`${side}-${loaded}`}
                     className="card-markdown flex-1"
                     value={card[side]}
                     placeholder={side === "front" ? "Front" : "Back"}

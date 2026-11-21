@@ -65,7 +65,7 @@ export function quizSegments(markdown: string): Segment[] {
     if (part.trim()) segments.push({ type: "text", text: part });
   };
   let end = 0;
-  for (const match of markdown.matchAll(/^```quiz[ \t]*(?:\n|(?![^]))([^]*?)(^```[ \t]*$|(?![^]))/gm)) {
+  for (const match of markdown.matchAll(/^```quiz[ \t]*(?:\r?\n|(?![^]))([^]*?)(^```[ \t]*\r?$|(?![^]))/gm)) {
     text(end, match.index);
     segments.push({ type: "quiz", text: match[1], complete: !!match[2] });
     end = match.index + match[0].length;

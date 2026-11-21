@@ -18,4 +18,7 @@ test("toggles, nested ones too, round-trip as <details>", () => {
   const doc = markdown.parse(source);
   assert.equal(doc.content?.[0]?.type, "details");
   assert.equal(markdown.serialize(doc), source);
+  const crlfDoc = markdown.parse(source.replaceAll("\n", "\r\n"));
+  assert.equal(crlfDoc.content?.[0]?.type, "details");
+  assert.equal(markdown.serialize(crlfDoc), source);
 });

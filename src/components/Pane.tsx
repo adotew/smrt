@@ -47,12 +47,13 @@ export default function Pane({
 
   const type = fileType(path);
   const pdfPath = type === "pdf" ? path : null;
+  const revision = edits[path] ?? 0;
   // Reloads once the assistant writes the file.
-  const key = `${path}#${edits[path] ?? 0}`;
+  const key = `${path}#${revision}`;
 
   const toggleNotes = () => setShowingNotes((showing) => !showing);
   useImperativeHandle(ref, () => ({
-    flush: () => Promise.all([markdown.current?.flush(), deck.current?.flush()]),
+    flush: () => Promise.all([reader.current?.flush(), markdown.current?.flush(), deck.current?.flush()]),
     toggleNotes,
     zoomIn: () => reader.current?.zoomIn(),
     zoomOut: () => reader.current?.zoomOut(),
@@ -64,17 +65,20 @@ export default function Pane({
 
   return (
     <>
-      <Reader
-        ref={reader}
-        path={pdfPath}
-        showingNotes={showingNotes}
-        placingNote={placingNote}
-        onPlacingNoteChange={setPlacingNote}
-        onEditingTextChange={setEditingText}
-        onerror={onerror}
-      />
-      {type === "md" && <MarkdownEditor key={key} ref={markdown} path={path} onerror={onerror} />}
-      {type === "cards" && <Deck key={key} ref={deck} path={path} active={active} onerror={onerror} />}
+      {pdfPath && (
+        <Reader
+          ref={reader}
+          path={pdfPath}
+          active={active}
+          showingNotes={showingNotes}
+          placingNote={placingNote}
+          onPlacingNoteChange={setPlacingNote}
+          onEditingTextChange={setEditingText}
+          onerror={onerror}
+        />
+      )}
+      {type === "md" && <MarkdownEditor key={path} ref={markdown} path={path} revision={revision} onerror={onerror} />}
+      {type === "cards" && <Deck key={path} ref={deck} path={path} revision={revision} active={active} onerror={onerror} />}
       {type === "quiz" && <QuizFile key={key} path={path} onerror={onerror} />}
       {type === "html" && <Html key={key} path={path} />}
       {/* Swaps in place with the text formatting bar, which grows in the same way. */}

@@ -102,6 +102,24 @@ export function withPageStyle(html: string) {
 const turnRect = ([x, y, w, h]: Rect, turn: 90 | -90): Rect =>
   turn === 90 ? [1 - y - h, x, h, w] : [y, 1 - x - w, h, w];
 
+/** Resolves symlinks along `target`, including dangling links and not-yet-created descendants. */
+export function realTarget(target: string, depth = 0): string {
+  if (depth > 40) throw new Error("That file is outside the library.");
+  const resolved = path.resolve(target);
+  try {
+    return fs.realpathSync(resolved);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    try {
+      if (fs.lstatSync(resolved).isSymbolicLink()) {
+        return realTarget(path.resolve(path.dirname(resolved), fs.readlinkSync(resolved)), depth + 1);
+      }
+    } catch {}
+    const parent = path.dirname(resolved);
+    return parent === resolved ? resolved : path.join(realTarget(parent, depth), path.basename(resolved));
+  }
+}
+
 /** Folders of PDFs, markdown files, flashcard decks, quizzes and HTML pages under `libraryPath`; PDFs may have sidecar files next to them. */
 export function createLibrary(
   libraryPath: string,
@@ -113,7 +131,7 @@ export function createLibrary(
   const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 
   function inLibrary(target: string) {
-    const resolved = path.resolve(target);
+    const resolved = realTarget(target);
     if (!resolved.startsWith(root + path.sep)) throw new Error("That file is outside the library.");
     return resolved;
   }
@@ -177,12 +195,17 @@ export function createLibrary(
     return folder;
   }
 
+  function sameFile(a: string, b: string) {
+    const [sa, sb] = [fs.statSync(a), fs.statSync(b)];
+    return sa.dev === sb.dev && sa.ino === sb.ino;
+  }
+
   function renameFolder(source: string, name: string) {
     source = libraryFolder(source);
     const destination = path.join(root, validatedName(name));
     if (destination === source) return source;
-    // A case-only rename finds the source itself on case-insensitive volumes.
-    if (destination.toLowerCase() !== source.toLowerCase() && fs.existsSync(destination)) {
+    // A case-only rename finds the source itself on case-insensitive volumes, but may hit another folder on case-sensitive ones.
+    if (fs.existsSync(destination) && !sameFile(source, destination)) {
       throw new Error("A folder with that name already exists.");
     }
     fs.renameSync(source, destination);
@@ -221,11 +244,11 @@ export function createLibrary(
     source = inLibrary(source);
     const extension = path.extname(source);
     name = name.trim();
-    if (name.toLowerCase().endsWith(extension.toLowerCase())) name = name.slice(0, -extension.length);
+    if (extension && name.toLowerCase().endsWith(extension.toLowerCase())) name = name.slice(0, -extension.length);
     const destination = path.join(path.dirname(source), validatedName(name) + extension);
     if (destination === source) return source;
-    // A case-only rename finds the source itself on case-insensitive volumes.
-    if (destination.toLowerCase() !== source.toLowerCase() && fs.existsSync(destination)) {
+    // A case-only rename finds the source itself on case-insensitive volumes, but may hit another file on case-sensitive ones.
+    if (fs.existsSync(destination) && !sameFile(source, destination)) {
       throw new Error(`“${path.basename(destination)}” already exists.`);
     }
     fs.renameSync(source, destination);
@@ -285,8 +308,14 @@ export function createLibrary(
   }
 
   async function writeAtomically(file: string, text: string) {
-    await fs.promises.writeFile(file + ".tmp", text);
-    await fs.promises.rename(file + ".tmp", file);
+    const temp = `${file}.${crypto.randomUUID()}.tmp`;
+    try {
+      await fs.promises.writeFile(temp, text);
+      await fs.promises.rename(temp, file);
+    } catch (error) {
+      await fs.promises.rm(temp, { force: true }).catch(() => {});
+      throw error;
+    }
   }
 
   async function saveMarkdown(file: string, text: string) {
@@ -298,7 +327,15 @@ export function createLibrary(
   function readDeck(file: string) {
     file = deckFile(file);
     const deck = readSidecar<Deck>(file, "cards") ?? { cards: [] };
-    if (!Array.isArray(deck.cards)) throw new Error(`The cards in “${path.basename(file)}” could not be read.`);
+    const validCard = (card: unknown): card is Card =>
+      !!card &&
+      typeof card === "object" &&
+      typeof (card as Card).id === "string" &&
+      typeof (card as Card).front === "string" &&
+      typeof (card as Card).back === "string";
+    if (!Array.isArray(deck.cards) || !deck.cards.every(validCard)) {
+      throw new Error(`The cards in “${path.basename(file)}” could not be read.`);
+    }
     return deck;
   }
 

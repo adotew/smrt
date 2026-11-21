@@ -21,11 +21,20 @@ interface AssistantState {
   edits: Record<string, number>;
 }
 
+function readRecent(): string[] {
+  try {
+    const parsed: unknown = JSON.parse(localStorage.getItem("recent") ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
 let state: AssistantState = {
   model: models[0].id,
   context: null,
   library: [],
-  recent: JSON.parse(localStorage.getItem("recent") ?? "[]"),
+  recent: readRecent(),
   edits: {},
 };
 const listeners = new Set<() => void>();

@@ -3,6 +3,7 @@ import type { UIMessageChunk } from "ai";
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { realTarget } from "./library.ts";
 
 export interface Ask {
   text: string;
@@ -21,6 +22,7 @@ export interface Account {
 
 const tools = ["Read", "Glob", "Grep", "Write", "Edit"];
 const startTitles: Record<string, string> = { Read: "Reading", Write: "Writing", Edit: "Editing" };
+const hasParentSegment = (value: unknown) => typeof value === "string" && /(^|[\\/])\.\.([\\/]|$)/.test(value);
 
 // Claude Code prefers an API key over the subscription login; the assistant runs on the subscription.
 const env = { ...process.env, ANTHROPIC_API_KEY: undefined };
@@ -33,7 +35,7 @@ const claude = () =>
     .replace(`app.asar${path.sep}`, `app.asar.unpacked${path.sep}`);
 
 /** Turns the Agent SDK's messages into the chunks the renderer's chat reads. */
-export function createConverter(exists: (file: string) => boolean) {
+export function createConverter(exists: (file: string) => boolean, resolveFile = (file: string) => file) {
   /** Open content blocks of the current model response, by index. */
   const blocks = new Map<number, { id: string; type: "text" | "reasoning" }>();
   const shown = new Set<string>();
@@ -83,7 +85,8 @@ export function createConverter(exists: (file: string) => boolean) {
       return message.message.content.flatMap((block): UIMessageChunk[] => {
         if (block.type !== "tool_use") return [];
         shown.add(block.id);
-        const input = block.input as Record<string, unknown>;
+        const raw = block.input as Record<string, unknown>;
+        const input = typeof raw.file_path === "string" ? { ...raw, file_path: resolveFile(raw.file_path) } : raw;
         return [{ type: "tool-input-available", toolCallId: block.id, toolName: block.name, input, title: title(block.name, input), providerExecuted: true }];
       });
     }
@@ -117,7 +120,12 @@ export function createConverter(exists: (file: string) => boolean) {
  * Chunks go to `send`; each reply starts with a `start` chunk and ends with `finish`, as does each part of it
  * either side of a change the person has to approve.
  */
-export function createAssistant(libraryPath: string, guide: string, send: (chunk: UIMessageChunk) => void) {
+export function createAssistant(
+  libraryPath: string,
+  guide: string,
+  send: (chunk: UIMessageChunk) => void,
+  run: typeof query = query,
+) {
   const systemPrompt = `You are the assistant in Smrt, a PDF library and reader. Answer briefly, in markdown.
 
 The working directory is the person's library. Each folder in it holds PDFs, markdown notes (.md), flashcard decks (.cards), quizzes (.quiz) and interactive HTML pages (.html). Paths given to you are absolute.
@@ -136,45 +144,66 @@ ${guide}`;
 
   // Claude Code reports real paths, so a symlinked library would otherwise count as outside itself.
   libraryPath = fs.realpathSync(libraryPath);
+  const resolveFile = (file: string) => path.resolve(libraryPath, file);
   let sessionId: string | undefined;
   let running: AbortController | null = null;
+  let flushQueued: (() => void) | null = null;
   /** Changes waiting for their tool call to reach the renderer, and those waiting for the person's answer. */
   const queued = new Map<string, (approved: boolean) => void>();
   const asked = new Map<string, (approved: boolean) => void>();
   let login: ChildProcess | null = null;
 
   function inLibrary(file: string) {
-    const relative = path.relative(libraryPath, path.resolve(libraryPath, file));
-    return !relative.startsWith("..") && !path.isAbsolute(relative);
+    try {
+      const target = realTarget(resolveFile(file));
+      return target === libraryPath || target.startsWith(libraryPath + path.sep);
+    } catch {
+      return false;
+    }
   }
 
   function ask({ text, context, model, fresh }: Ask) {
     stop();
     const controller = (running = new AbortController());
     if (fresh) sessionId = undefined;
-    const converter = createConverter((file) => fs.existsSync(path.resolve(libraryPath, file)));
+    const converter = createConverter((file) => {
+      try {
+        return fs.existsSync(realTarget(resolveFile(file)));
+      } catch {
+        return false;
+      }
+    }, resolveFile);
     const emit = (chunk: UIMessageChunk) => controller === running && send(chunk);
 
-    // Asks only once the renderer has the tool call the approval belongs to.
+    // Asks one approval at a time, once the renderer has the tool call it belongs to.
     function askQueued() {
+      if (controller !== running || asked.size > 0) return;
       for (const [id, answer] of queued) {
         if (!converter.shown(id)) continue;
         queued.delete(id);
         asked.set(id, answer);
         emit({ type: "tool-approval-request", approvalId: id, toolCallId: id });
         emit({ type: "finish" });
+        return;
       }
     }
+    flushQueued = askQueued;
 
     const canUseTool: CanUseTool = async (tool, input, { toolUseID }) => {
       const file = String(input.file_path ?? input.path ?? ".");
-      if (!inLibrary(file)) return { behavior: "deny", message: "Only files in the library can be used." };
+      if (
+        !inLibrary(file) ||
+        (tool === "Glob" && hasParentSegment(input.pattern)) ||
+        (tool === "Grep" && hasParentSegment(input.glob))
+      ) {
+        return { behavior: "deny", message: "Only files in the library can be used." };
+      }
       if (tool === "Write" || tool === "Edit") {
         if (!/\.(md|cards|quiz|html)$/i.test(file)) {
           return { behavior: "deny", message: "Only markdown files, flashcard decks, quizzes and HTML pages can be written." };
         }
         // New files are harmless; changing one needs the person's go-ahead.
-        if (tool === "Edit" || fs.existsSync(path.resolve(libraryPath, file))) {
+        if (tool === "Edit" || fs.existsSync(realTarget(resolveFile(file)))) {
           const approved = await new Promise<boolean>((resolve) => {
             queued.set(toolUseID, resolve);
             askQueued();
@@ -191,11 +220,11 @@ ${guide}`;
     void (async () => {
       emit({ type: "start" });
       try {
-        const messages = query({
+        const messages = run({
           prompt: context ? `I'm looking at ${context}.\n\n${text}` : text,
           options: {
             cwd: libraryPath,
-            pathToClaudeCodeExecutable: claude(),
+            pathToClaudeCodeExecutable: run === query ? claude() : "",
             model,
             // shortcut: a retried reply resumes a session that still holds the first attempt; fork the session if that confuses replies.
             resume: sessionId,
@@ -217,6 +246,7 @@ ${guide}`;
       } catch (error) {
         if (!controller.signal.aborted) emit({ type: "error", errorText: error instanceof Error ? error.message : String(error) });
       }
+      if (controller === running) flushQueued = null;
       emit({ type: "finish" });
     })();
   }
@@ -227,11 +257,15 @@ ${guide}`;
     asked.delete(approvalId);
     send({ type: "start" });
     resolve(approved);
+    flushQueued?.();
   }
 
   function stop() {
     running?.abort();
     running = null;
+    flushQueued = null;
+    for (const resolve of queued.values()) resolve(false);
+    for (const resolve of asked.values()) resolve(false);
     queued.clear();
     asked.clear();
   }
@@ -253,14 +287,29 @@ ${guide}`;
   function signIn() {
     login?.kill();
     const child = (login = spawn(claude(), ["auth", "login", "--claudeai"], { env, stdio: ["pipe", "ignore", "ignore"] }));
+    child.stdin?.on("error", () => {});
     return new Promise<void>((resolve, reject) => {
-      child.on("error", reject);
-      child.on("exit", (code) => (code === 0 ? resolve() : reject(new Error("Signing in didn't finish. Try again."))));
+      child.on("error", (error) => {
+        if (login === child) login = null;
+        reject(error);
+      });
+      child.on("exit", (code) => {
+        if (login === child) login = null;
+        if (code === 0) resolve();
+        else reject(new Error("Signing in didn't finish. Try again."));
+      });
     });
   }
 
   /** The code the browser shows when it can't hand the sign-in back by itself. */
-  const enterSignInCode = (code: string) => login?.stdin?.write(String(code).trim() + "\n");
+  const enterSignInCode = (code: string) => {
+    if (login?.stdin?.writable) login.stdin.write(String(code).trim() + "\n");
+  };
 
-  return { ask, answer, stop, account, signIn, enterSignInCode };
+  const killLogin = () => {
+    login?.kill();
+    login = null;
+  };
+
+  return { ask, answer, stop, account, signIn, enterSignInCode, killLogin };
 }

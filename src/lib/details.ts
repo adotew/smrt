@@ -125,7 +125,7 @@ export const Details = BaseDetails.extend({
     level: "block",
     start: (src) => src.search(/^<details( open)?>/m),
     tokenize(src, _tokens, lexer) {
-      const open = src.match(/^<details( open)?>[ \t]*\n?[ \t]*<summary>(.*?)<\/summary>[ \t]*\n/);
+      const open = src.match(/^<details( open)?>[ \t]*(?:\r?\n)?[ \t]*<summary>(.*?)<\/summary>[ \t]*\r?\n/);
       if (!open) return undefined;
       // Finds the matching close, past any toggles nested inside.
       const tags = /<\/?details( open)?>/g;
