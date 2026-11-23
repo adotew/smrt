@@ -323,7 +323,8 @@ main:not(.sidebar-hidden) #window-controls {
   min-height: 100%;
   display: flex;
   flex-direction: column;
-  border-radius: 10px;
+  gap: 2px;
+  border-radius: 8px;
 }
 
 #sidebar .file-tree.root-drop-target {
@@ -333,27 +334,40 @@ main:not(.sidebar-hidden) #window-controls {
 }
 
 #sidebar .row {
+  position: relative;
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 6px;
+  gap: 7px;
+  height: 28px;
+  padding: 0 8px;
   border: 0;
-  border-radius: 10px;
+  border-radius: 7px;
   background: none;
+  color: color-mix(in srgb, CanvasText 84%, transparent);
   text-align: left;
   cursor: default;
   user-select: none;
   box-sizing: border-box;
+  transition: background 0.1s ease, color 0.1s ease;
 }
 
 #sidebar .row:hover {
   background: var(--hover);
+  color: CanvasText;
 }
 
 #sidebar .row.selected {
   background: var(--selection);
+  color: CanvasText;
+}
+
+#sidebar .row.active {
+  color: CanvasText;
+}
+
+#sidebar .row.active .label {
+  font-weight: 500;
 }
 
 #sidebar .row:focus-visible {
@@ -365,15 +379,26 @@ main:not(.sidebar-hidden) #window-controls {
   background: color-mix(in srgb, #0a84ff 16%, transparent);
   outline: 1.5px solid #0a84ff;
   outline-offset: -1.5px;
+  color: CanvasText;
 }
 
 #sidebar .row.search-match .label {
   color: #0a84ff;
 }
 
-#sidebar .row img {
-  width: 22px;
-  height: 22px;
+#sidebar .indent-guide {
+  position: absolute;
+  top: -1px;
+  bottom: -1px;
+  width: 1px;
+  background: var(--separator);
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+#sidebar:hover .indent-guide {
+  opacity: 1;
 }
 
 #sidebar .label {
@@ -385,10 +410,10 @@ main:not(.sidebar-hidden) #window-controls {
 #sidebar .rename-input {
   flex: 1;
   min-width: 0;
-  height: 24px;
+  height: 22px;
   padding: 0 6px;
   border: 1px solid #0a84ff;
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--background);
   color: CanvasText;
   font: inherit;

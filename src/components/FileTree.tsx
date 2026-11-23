@@ -119,7 +119,6 @@ export interface FileTreeProps {
   expanded: string[];
   onExpandedChange: (expanded: string[]) => void;
   activeFile: string | null;
-  activeFolder: string | null;
   onSelectFolder: (folderPath: string | null) => void;
   onOpenFile: (filePath: string, beside?: boolean) => void;
   onRename: (path: string, kind: "folder" | "file", newName: string) => Promise<void>;
@@ -133,15 +132,19 @@ export interface FileTreeProps {
 }
 
 export default function FileTree(props: FileTreeProps) {
-  const { folders, expanded, activeFile, activeFolder } = props;
+  const { folders, expanded, activeFile } = props;
   const nodes = useMemo(() => buildNodes(folders), [folders]);
   const nodesRef = useRef(nodes);
   nodesRef.current = nodes;
   const propsRef = useRef(props);
   propsRef.current = props;
 
-  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [selectedItems, setSelectedItems] = useState<string[]>(() => (activeFile ? [activeFile] : []));
   const [rootDragOver, setRootDragOver] = useState(false);
+
+  useEffect(() => {
+    if (activeFile) setSelectedItems([activeFile]);
+  }, [activeFile]);
 
   const tree = useTree<TreeNode>({
     rootItemId: ROOT_ID,
@@ -367,7 +370,7 @@ export default function FileTree(props: FileTreeProps) {
         const id = item.getId();
         const isFolder = item.isFolder();
         const open = isFolder && item.isExpanded();
-        const isActive = isFolder ? activeFolder === id && !activeFile : activeFile === id;
+        const isActive = !isFolder && activeFile === id;
         const isSelected = item.isSelected();
         const isDropTarget = item.isDragTarget();
         const isMatch = isSearchOpen && item.isMatchingSearch();
@@ -378,20 +381,24 @@ export default function FileTree(props: FileTreeProps) {
           <div
             {...itemProps}
             key={item.getKey()}
-            className={`row ${isFolder ? "folder" : "file"} ${isActive || isSelected ? "selected" : ""} ${isDropTarget ? "drop-target" : ""} ${isMatch ? "search-match" : ""}`}
-            style={{ paddingLeft: `${level * 14 + (isFolder ? 6 : 10)}px` }}
+            className={`row ${isFolder ? "folder" : "file"} ${isSelected ? "selected" : ""} ${isActive ? "active" : ""} ${isDropTarget ? "drop-target" : ""} ${isMatch ? "search-match" : ""}`}
+            style={{ paddingLeft: `${level * 16 + 8}px` }}
             onContextMenu={(e) => {
               e.preventDefault();
               e.stopPropagation();
               void openItemMenu(item);
             }}
           >
+            {level > 0 &&
+              Array.from({ length: level }, (_, depth) => (
+                <span key={depth} className="indent-guide" style={{ left: `${depth * 16 + 13}px` }} aria-hidden="true" />
+              ))}
             {isFolder ? (
               <span className={`chevron ${open ? "open" : ""}`}>
                 <Icon name="chevronRight" size={12} />
               </span>
             ) : (
-              <FileIcon type={fileType(id)} size={22} />
+              <FileIcon type={fileType(id)} size={16} />
             )}
             {item.isRenaming() ? <RenameInput item={item} /> : <span className="label">{item.getItemName()}</span>}
           </div>

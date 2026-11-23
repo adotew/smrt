@@ -422,7 +422,6 @@ export default function App() {
             expanded={expanded}
             onExpandedChange={setExpanded}
             activeFile={filePath}
-            activeFolder={folderPath}
             onSelectFolder={setFolderPath}
             onOpenFile={openFile}
             onRename={renameItem}
