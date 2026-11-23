@@ -10,6 +10,7 @@ import {
 } from "dockview-react";
 import type { Command } from "../electron/main.ts";
 import type { Folder } from "../electron/library.ts";
+import { Button } from "./components/ui/button.tsx";
 import ContextMenu, { contextMenu } from "./components/ContextMenu.tsx";
 import EmptyState from "./components/EmptyState.tsx";
 import FileIcon from "./components/FileIcon.tsx";
@@ -472,27 +473,45 @@ export default function App() {
 
       <ContextMenu />
 
-      <dialog ref={promptDialog}>
+      <dialog
+        ref={promptDialog}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) event.currentTarget.close("cancel");
+        }}
+      >
         <form method="dialog">
           <h2>{prompt.title}</h2>
-          <input required ref={promptInput} value={prompt.value} onChange={(event) => setPrompt({ ...prompt, value: event.target.value })} />
+          <input
+            required
+            ref={promptInput}
+            placeholder="Name"
+            value={prompt.value}
+            onChange={(event) => setPrompt({ ...prompt, value: event.target.value })}
+          />
           <div className="buttons">
-            <button value="ok" className="primary">
+            <Button type="submit" size="sm" value="ok">
               {prompt.confirm}
-            </button>
-            <button value="cancel" formNoValidate>
+            </Button>
+            <Button type="submit" variant="ghost" size="sm" value="cancel" formNoValidate>
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       </dialog>
 
-      <dialog ref={alertDialog}>
+      <dialog
+        ref={alertDialog}
+        onClick={(event) => {
+          if (event.target === event.currentTarget) event.currentTarget.close();
+        }}
+      >
         <form method="dialog">
           <h2>Something went wrong</h2>
           <p>{alertMessage}</p>
           <div className="buttons">
-            <button className="primary">OK</button>
+            <Button type="submit" size="sm">
+              OK
+            </Button>
           </div>
         </form>
       </dialog>
