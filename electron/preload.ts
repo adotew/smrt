@@ -1,23 +1,26 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { UIMessageChunk } from "ai";
 import type { Command, Handlers } from "./main.ts";
 
 /** `window.smrt`: each handler in main.ts, invoked over IPC. */
 export type SmrtApi = {
-  [K in keyof Handlers]: (...args: Parameters<Handlers[K]>) => Promise<Awaited<ReturnType<Handlers[K]>>>;
+  [K in Exclude<keyof Handlers, "importPDFFile">]: (...args: Parameters<Handlers[K]>) => Promise<Awaited<ReturnType<Handlers[K]>>>;
 } & {
   platform: NodeJS.Platform;
+  /** Imports a PDF dropped from outside, so the renderer can only name files the person actually dropped. */
+  importDroppedPDF(file: File, folder: string): Promise<string>;
   on(channel: "fullscreen", listener: (value: boolean) => void): void;
   on(channel: "command", listener: (value: Command) => void): void;
   on(channel: "assistant", listener: (value: UIMessageChunk) => void): void;
 };
 
 // A record, so leaving out or misspelling a handler is a type error.
-const channels: Record<keyof Handlers, true> = {
+const channels: Record<Exclude<keyof Handlers, "importPDFFile">, true> = {
   listLibrary: true,
   createFolder: true,
   renameFolder: true,
   trashFolder: true,
+  move: true,
   importPDF: true,
   renameFile: true,
   trashFile: true,
@@ -49,6 +52,7 @@ const channels: Record<keyof Handlers, true> = {
 
 contextBridge.exposeInMainWorld("smrt", {
   platform: process.platform,
+  importDroppedPDF: (file: File, folder: string) => ipcRenderer.invoke("importPDFFile", webUtils.getPathForFile(file), folder),
   ...Object.fromEntries(
     Object.keys(channels).map((channel) => [channel, (...args: unknown[]) => ipcRenderer.invoke(channel, ...args)]),
   ),

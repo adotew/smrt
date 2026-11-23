@@ -14,7 +14,7 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
-import { assistant, chat, models, useAssistant } from "../lib/assistant.ts";
+import { allFiles, assistant, chat, models, useAssistant } from "../lib/assistant.ts";
 import { contextMenu } from "../components/ContextMenu.tsx";
 import FileIcon from "../components/FileIcon.tsx";
 import Icon, { streamdownIcons, type IconName } from "../components/Icon.tsx";
@@ -68,8 +68,7 @@ export default function Assistant({
   const [mentionValue, setMentionValue] = useState("");
 
   const streaming = status === "submitted" || status === "streaming";
-  const libraryFiles = () =>
-    library.flatMap((f) => [...f.pdfs, ...f.markdown, ...f.decks, ...f.quizzes, ...f.html].map((file) => ({ ...file, folder: f.name })));
+  const libraryFiles = () => allFiles(library);
   const mentionMatches =
     mentionQuery == null
       ? []

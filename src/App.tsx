@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, type RefObject } from "react";
 import { flushSync } from "react-dom";
-import { AnimatePresence, motion } from "motion/react";
 import {
   DockviewReact,
   themeLight,
@@ -14,33 +13,32 @@ import type { Folder } from "../electron/library.ts";
 import ContextMenu, { contextMenu } from "./components/ContextMenu.tsx";
 import EmptyState from "./components/EmptyState.tsx";
 import FileIcon from "./components/FileIcon.tsx";
+import FileTree, { addToFolder, addToFolderItems } from "./components/FileTree.tsx";
 import Icon, { IconButton } from "./components/Icon.tsx";
-import { assistant, useAssistant } from "./lib/assistant.ts";
+import { allFiles, assistant, useAssistant } from "./lib/assistant.ts";
 import Pane, { fileType, type PaneHandle } from "./components/Pane.tsx";
-import { ease } from "./lib/transitions.ts";
 import Assistant from "./views/Assistant.tsx";
 
 const api = window.smrt;
 
-type File = Folder["pdfs"][number];
-
 const baseName = (name: string) => name.replace(/\.(pdf|md|cards|quiz|html)$/i, "");
 const title = (path: string) => baseName(path.split(/[\\/]/).pop()!);
-const byName = (a: File, b: File) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
-const filesOf = (folder: Folder) => [...folder.pdfs, ...folder.markdown, ...folder.decks, ...folder.quizzes, ...folder.html];
 const inFolder = (file: string, folder: string) => file.startsWith(folder) && /[\\/]/.test(file[folder.length] ?? "");
 const pathOf = (panel: { params?: Record<string, unknown> }) => panel.params?.path as string;
 
+/** Returns every ancestor folder path of `target` in `folders`, outermost first. */
+function ancestorFolders(folders: Folder[], target: string): string[] {
+  for (const folder of folders) {
+    if (folder.path === target) return [folder.path];
+    if (inFolder(target, folder.path)) {
+      return [folder.path, ...ancestorFolders(folder.folders, target)];
+    }
+  }
+  return [];
+}
+
 /** Dockview's light theme, recoloured from app.css so it follows dark mode too. */
 const theme = { ...themeLight, className: "dockview-theme-light dock-theme" };
-
-/** Slides the list open while the files travel down from the folder, and back up on close. */
-const reveal = {
-  initial: { height: 0, y: -12, opacity: 0, overflow: "hidden" },
-  animate: { height: "auto", y: 0, opacity: 1, transitionEnd: { overflow: "visible" } },
-  exit: { height: 0, y: -12, opacity: 0, overflow: "hidden" },
-  transition: { duration: 0.2, ease },
-} as const;
 
 /** What the dock's panels need from App; dockview renders them outside App's props. */
 const Panes = createContext<{
@@ -114,7 +112,7 @@ const Watermark = () => (
 
 export default function App() {
   const { library: folders, edits } = useAssistant();
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [expanded, setExpanded] = useState<string[]>([]);
   /** Folder used for imports. */
   const [folderPath, setFolderPath] = useState<string | null>(null);
   const dock = useRef<DockviewApi>(null);
@@ -143,12 +141,11 @@ export default function App() {
   const flushEditors = () => Promise.all(Object.values(views.current).map((v) => v?.flush()));
   const saveLayout = () => dock.current && localStorage.setItem("layout", JSON.stringify(dock.current.toJSON()));
   const toggleSidebar = () => setShowingSidebar((showing) => !showing);
-  const expand = (folder: string) => setExpanded((expanded) => new Set(expanded).add(folder));
-  const collapse = (folder: string) =>
-    setExpanded((expanded) => {
-      const next = new Set(expanded);
-      next.delete(folder);
-      return next;
+  const expand = (...paths: string[]) =>
+    setExpanded((prev) => {
+      const next = [...prev];
+      for (const p of paths) if (p && !next.includes(p)) next.push(p);
+      return next.length === prev.length ? prev : next;
     });
 
   // Listeners on window.smrt can't be removed, so they are added once and reach the latest render through this.
@@ -212,7 +209,7 @@ export default function App() {
     } catch {
       dock.current.clear();
     }
-    const existing = new Set(assistant.get().library.flatMap((f) => filesOf(f).map((file) => file.path)));
+    const existing = new Set(allFiles(assistant.get().library).map((file) => file.path));
     for (const panel of panels().filter((p) => !existing.has(pathOf(p)))) panel.api.close();
   }
 
@@ -244,12 +241,12 @@ export default function App() {
     assistant.set({ library: await api.listLibrary() });
   }
 
-  async function newFolder() {
+  async function newFolder(parent?: string) {
     const name = await ask("New Folder", "Create");
     if (name == null) return;
     await perform(async () => {
-      const created = await api.createFolder(name);
-      expand(created);
+      const created = await api.createFolder(name, parent);
+      expand(...(parent ? [parent] : []), created);
       setFolderPath(created);
       await reload();
     });
@@ -277,9 +274,10 @@ export default function App() {
 
   /** Opens `path` as a tab in the active group, or in a new group to its right with `beside`; a file already open just gets focus. */
   function openFile(path: string, beside = false) {
-    const parent = assistant.get().library.find((f) => filesOf(f).some((p) => p.path === path));
-    setFolderPath(parent?.path ?? null);
-    if (parent) expand(parent.path);
+    const library = assistant.get().library;
+    const match = allFiles(library).find((p) => p.path === path);
+    setFolderPath(match?.folderPath ?? null);
+    if (match) expand(...ancestorFolders(library, match.folderPath));
     remember([path, ...assistant.get().recent.filter((p) => p !== path)]);
     const dockApi = dock.current;
     if (!dockApi) return;
@@ -337,132 +335,108 @@ export default function App() {
     remember(assistant.get().recent.map(move));
   }
 
-  async function fileMenu(file: File) {
-    const choice = await contextMenu([
-      ...(fileType(file.path) === "cards" ? [{ id: "edit", label: "Edit Cards" }] : []),
-      { id: "split", label: "Open in Split View" },
-      { type: "separator" as const },
-      { id: "rename", label: "Rename…" },
-      { id: "trash", label: "Move to Trash" },
-    ]);
-    if (choice === "edit") {
-      flushSync(() => openFile(file.path));
-      view()?.startEditing();
-    } else if (choice === "split") {
-      openFile(file.path, true);
-    } else if (choice === "rename") {
-      const titles = { md: "Rename Markdown File", cards: "Rename Deck", quiz: "Rename Quiz", html: "Rename HTML Page", pdf: "Rename PDF" };
-      const name = await ask(titles[fileType(file.path)], "Rename", baseName(file.name));
-      if (name == null) return;
-      await perform(async () => {
-        await flushEditors();
-        const renamed = await api.renameFile(file.path, name);
-        follow((p) => (p === file.path ? renamed : p));
-        await reload();
-      });
-    } else if (choice === "trash") {
-      await perform(async () => {
-        await closeShowing((p) => p === file.path);
-        await api.trashFile(file.path);
-        await reload();
-      });
-    }
+  function rewritePath(path: string, from: string, to: string) {
+    if (path === from) return to;
+    if (inFolder(path, from)) return to + path.slice(from.length);
+    return path;
   }
 
-  async function folderMenu(target: string) {
-    const choice = await contextMenu([
-      { id: "import", label: "Import PDF…" },
-      { id: "markdown", label: "New Markdown File…" },
-      { id: "deck", label: "New Flashcard Deck…" },
-      { type: "separator" as const },
-      { id: "rename", label: "Rename…" },
-      { id: "trash", label: "Move to Trash" },
-    ]);
-    setFolderPath(target);
-    if (choice === "import") await importInto(target);
-    else if (choice === "markdown") await newFile(target, "md");
-    else if (choice === "deck") await newFile(target, "cards");
-    else if (choice === "rename") await renameFolder(target);
-    else if (choice === "trash") await trashFolder(target);
-  }
-
-  async function renameFolder(target: string) {
-    const name = await ask("Rename Folder", "Rename", folders.find((f) => f.path === target)?.name);
-    if (name == null) return;
+  async function renameItem(target: string, kind: "folder" | "file", name: string) {
     await perform(async () => {
       await flushEditors();
-      const renamed = await api.renameFolder(target, name);
-      follow((p) => (inFolder(p, target) ? renamed + p.slice(target.length) : p));
-      if (expanded.has(target)) {
-        collapse(target);
-        expand(renamed);
+      const renamed = kind === "folder" ? await api.renameFolder(target, name) : await api.renameFile(target, name);
+      if (renamed === target) return;
+      follow((p) => rewritePath(p, target, renamed));
+      if (kind === "folder") {
+        setExpanded((prev) => prev.map((p) => rewritePath(p, target, renamed)));
+        setFolderPath((prev) => (prev ? rewritePath(prev, target, renamed) : prev));
       }
-      setFolderPath(renamed);
       await reload();
     });
   }
 
-  async function trashFolder(target: string) {
+  async function moveItems(sources: string[], targetFolder: string | null) {
     await perform(async () => {
-      await closeShowing((p) => inFolder(p, target));
-      await api.trashFolder(target);
-      collapse(target);
-      setFolderPath(null);
-      remember(assistant.get().recent.filter((p) => !inFolder(p, target)));
-      await reload();
+      await flushEditors();
+      const moves: [string, string][] = [];
+      try {
+        for (const source of sources) {
+          const destination = await api.move(source, targetFolder);
+          if (destination !== source) moves.push([source, destination]);
+        }
+      } finally {
+        // Items moved before a failure still need their tabs and paths updated.
+        if (moves.length) {
+          const remap = (p: string) => moves.reduce((acc, [from, to]) => rewritePath(acc, from, to), p);
+          follow(remap);
+          setExpanded((prev) => prev.map(remap));
+          setFolderPath((prev) => (prev ? remap(prev) : prev));
+          await reload();
+        }
+      }
     });
   }
 
-  function toggleFolder(target: Folder) {
-    setFolderPath(target.path);
-    if (expanded.has(target.path)) collapse(target.path);
-    else expand(target.path);
+  async function dropExternalFiles(files: File[], targetFolder: string) {
+    await perform(async () => {
+      let lastImported: string | null = null;
+      try {
+        for (const file of files) lastImported = await api.importDroppedPDF(file, targetFolder);
+      } finally {
+        await reload();
+      }
+      if (lastImported) openFile(lastImported);
+    });
+  }
+
+  async function trashItems(targets: { path: string; kind: "folder" | "file" }[]) {
+    await perform(async () => {
+      const matches = (p: string) =>
+        targets.some((t) => p === t.path || (t.kind === "folder" && inFolder(p, t.path)));
+      await closeShowing(matches);
+      try {
+        for (const target of targets) {
+          if (target.kind === "folder") await api.trashFolder(target.path);
+          else await api.trashFile(target.path);
+        }
+      } finally {
+        await reload();
+      }
+      setExpanded((prev) => prev.filter((p) => !matches(p)));
+      setFolderPath((prev) => (prev && matches(prev) ? null : prev));
+      remember(assistant.get().recent.filter((p) => !matches(p)));
+    });
+  }
+
+  async function addMenu(target: string) {
+    const choice = await contextMenu(addToFolderItems);
+    addToFolder(choice, target, { onNewFolder: newFolder, onImportPDF: importInto, onNewFile: newFile });
   }
 
   return (
     <>
       <main className={`${windowed ? "windowed" : ""} ${showingSidebar ? "" : "sidebar-hidden"} ${showingAssistant ? "" : "assistant-hidden"}`}>
         <aside id="sidebar" hidden={!showingSidebar}>
-          {folders.length === 0 ? (
-            <EmptyState icon="newFolder" title="Create a folder" action={{ label: "New Folder", run: newFolder }} />
-          ) : (
-            <ul role="tree">
-              {folders.map((f) => {
-                const open = expanded.has(f.path);
-                const selected = folderPath === f.path && !filePath;
-                return (
-                  <li key={f.path} role="treeitem" aria-expanded={open} aria-selected={selected}>
-                    <button className={`row ${selected ? "selected" : ""}`} onClick={() => toggleFolder(f)} onContextMenu={() => folderMenu(f.path)}>
-                      <span className={`chevron ${open ? "open" : ""}`}>
-                        <Icon name="chevronRight" size={12} />
-                      </span>
-                      <span className="label">{f.name}</span>
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {open && (
-                        <motion.ul role="group" {...reveal}>
-                          {filesOf(f)
-                            .sort(byName)
-                            .map((file) => (
-                              <li key={file.path} role="treeitem" aria-selected={filePath === file.path}>
-                                <button
-                                  className={`row file ${filePath === file.path ? "selected" : ""}`}
-                                  onClick={() => openFile(file.path)}
-                                  onContextMenu={() => fileMenu(file)}
-                                >
-                                  <FileIcon type={fileType(file.path)} size={22} />
-                                  <span className="label">{file.name}</span>
-                                </button>
-                              </li>
-                            ))}
-                        </motion.ul>
-                      )}
-                    </AnimatePresence>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <FileTree
+            folders={folders}
+            expanded={expanded}
+            onExpandedChange={setExpanded}
+            activeFile={filePath}
+            activeFolder={folderPath}
+            onSelectFolder={setFolderPath}
+            onOpenFile={openFile}
+            onRename={renameItem}
+            onMove={moveItems}
+            onDropExternalFiles={dropExternalFiles}
+            onTrash={trashItems}
+            onNewFolder={newFolder}
+            onImportPDF={importInto}
+            onNewFile={newFile}
+            onEditCards={(path) => {
+              flushSync(() => openFile(path));
+              view()?.startEditing();
+            }}
+          />
         </aside>
         <section id="dock">
           <Panes.Provider value={{ views, active: active?.id ?? null, onerror: showError }}>
@@ -485,8 +459,8 @@ export default function App() {
           <IconButton name="sidebar" size={16} title={showingSidebar ? "Hide Sidebar" : "Show Sidebar"} onClick={toggleSidebar} />
           {showingSidebar && (
             <>
-              <IconButton name="newFolder" size={16} title="New Folder" onClick={newFolder} />
-              <IconButton name="add" size={16} title="Add to Folder" onClick={() => folderPath && folderMenu(folderPath)} disabled={!folderPath} />
+              <IconButton name="newFolder" size={16} title="New Folder" onClick={() => newFolder()} />
+              <IconButton name="add" size={16} title="Add to Folder" onClick={() => folderPath && addMenu(folderPath)} disabled={!folderPath} />
             </>
           )}
         </div>

@@ -81,6 +81,7 @@ export interface Deck {
 export interface Folder {
   name: string;
   path: string;
+  folders: Folder[];
   pdfs: { name: string; path: string }[];
   markdown: { name: string; path: string }[];
   decks: { name: string; path: string }[];
@@ -114,7 +115,9 @@ export function realTarget(target: string, depth = 0): string {
       if (fs.lstatSync(resolved).isSymbolicLink()) {
         return realTarget(path.resolve(path.dirname(resolved), fs.readlinkSync(resolved)), depth + 1);
       }
-    } catch {}
+    } catch (lstatError) {
+      if ((lstatError as NodeJS.ErrnoException).code !== "ENOENT") throw lstatError;
+    }
     const parent = path.dirname(resolved);
     return parent === resolved ? resolved : path.join(realTarget(parent, depth), path.basename(resolved));
   }
@@ -161,29 +164,34 @@ export function createLibrary(
   function listLibrary(): Folder[] {
     const entries = (dir: string) =>
       fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => byName(a.name, b.name));
+    const readFolder = (folderPath: string): Folder => {
+      const items = entries(folderPath);
+      const files = items.filter((e) => e.isFile());
+      const withExtension = (extension: string) =>
+        files
+          .filter((e) => e.name.toLowerCase().endsWith(extension))
+          .map((e) => ({ name: e.name, path: path.join(folderPath, e.name) }));
+      return {
+        name: path.basename(folderPath),
+        path: folderPath,
+        folders: items
+          .filter((e) => e.isDirectory() && !e.name.startsWith("."))
+          .map((e) => readFolder(path.join(folderPath, e.name))),
+        pdfs: withExtension(".pdf"),
+        markdown: withExtension(".md"),
+        decks: withExtension(".cards"),
+        quizzes: withExtension(".quiz"),
+        html: withExtension(".html"),
+      };
+    };
     return entries(root)
-      .filter((e) => e.isDirectory())
-      .map((folder) => {
-        const folderPath = path.join(root, folder.name);
-        const files = entries(folderPath).filter((e) => e.isFile());
-        const withExtension = (extension: string) =>
-          files
-            .filter((e) => e.name.toLowerCase().endsWith(extension))
-            .map((e) => ({ name: e.name, path: path.join(folderPath, e.name) }));
-        return {
-          name: folder.name,
-          path: folderPath,
-          pdfs: withExtension(".pdf"),
-          markdown: withExtension(".md"),
-          decks: withExtension(".cards"),
-          quizzes: withExtension(".quiz"),
-          html: withExtension(".html"),
-        };
-      });
+      .filter((e) => e.isDirectory() && !e.name.startsWith("."))
+      .map((folder) => readFolder(path.join(root, folder.name)));
   }
 
-  function createFolder(name: string) {
-    const folder = path.join(root, validatedName(name));
+  function createFolder(name: string, parent?: string) {
+    const dir = parent ? libraryFolder(parent) : root;
+    const folder = path.join(dir, validatedName(name));
     if (fs.existsSync(folder)) throw new Error("A folder with that name already exists.");
     fs.mkdirSync(folder);
     return folder;
@@ -191,7 +199,7 @@ export function createLibrary(
 
   function libraryFolder(folder: string) {
     folder = inLibrary(folder);
-    if (path.dirname(folder) !== root || !fs.statSync(folder).isDirectory()) throw new Error("That isn't a library folder.");
+    if (!fs.statSync(folder).isDirectory()) throw new Error("That isn't a library folder.");
     return folder;
   }
 
@@ -200,9 +208,26 @@ export function createLibrary(
     return sa.dev === sb.dev && sa.ino === sb.ino;
   }
 
+  function moveFileWithSidecars(source: string, destination: string) {
+    fs.renameSync(source, destination);
+    const moved: [string, string][] = [];
+    try {
+      for (const [from, to] of sidecars(source).map((file, i) => [file, sidecars(destination)[i]])) {
+        if (!fs.existsSync(from)) continue;
+        fs.renameSync(from, to);
+        moved.push([from, to]);
+      }
+    } catch (error) {
+      // Keep the PDF and its sidecars together.
+      for (const [from, to] of moved.reverse()) fs.renameSync(to, from);
+      fs.renameSync(destination, source);
+      throw error;
+    }
+  }
+
   function renameFolder(source: string, name: string) {
     source = libraryFolder(source);
-    const destination = path.join(root, validatedName(name));
+    const destination = path.join(path.dirname(source), validatedName(name));
     if (destination === source) return source;
     // A case-only rename finds the source itself on case-insensitive volumes, but may hit another folder on case-sensitive ones.
     if (fs.existsSync(destination) && !sameFile(source, destination)) {
@@ -212,20 +237,44 @@ export function createLibrary(
     return destination;
   }
 
+  /** Moves a file or folder into `targetFolder`, or to the library root when `targetFolder` is omitted (folders only). */
+  function move(source: string, targetFolder?: string | null) {
+    source = inLibrary(source);
+    const isDir = fs.statSync(source).isDirectory();
+    let destDir: string;
+    if (targetFolder) {
+      destDir = libraryFolder(targetFolder);
+    } else {
+      if (!isDir) throw new Error("Files must be placed inside a folder.");
+      destDir = root;
+    }
+    if (isDir && (destDir === source || destDir.startsWith(source + path.sep))) {
+      throw new Error("A folder can't be moved into itself.");
+    }
+    const destination = path.join(destDir, path.basename(source));
+    if (destination === source) return source;
+    if (fs.existsSync(destination) && !sameFile(source, destination)) {
+      throw new Error(isDir ? "A folder with that name already exists." : `“${path.basename(destination)}” already exists.`);
+    }
+    if (isDir) fs.renameSync(source, destination);
+    else moveFileWithSidecars(source, destination);
+    return destination;
+  }
+
   async function trashFolder(folder: string) {
     await trash(libraryFolder(folder));
   }
 
   function importPDF(source: string, folder: string) {
     folder = inLibrary(folder);
+    const notPDF = new Error("This file could not be opened as a PDF.");
+    if (!source.toLowerCase().endsWith(".pdf")) throw notPDF;
     const header = Buffer.alloc(1024);
     const fd = fs.openSync(source, "r");
     const read = fs.readSync(fd, header, 0, header.length, 0);
     fs.closeSync(fd);
     // shortcut: checks the %PDF- header only, so a truncated PDF still imports; parse it if that matters.
-    if (!source.toLowerCase().endsWith(".pdf") || !header.subarray(0, read).includes("%PDF-")) {
-      throw new Error("This file could not be opened as a PDF.");
-    }
+    if (!header.subarray(0, read).includes("%PDF-")) throw notPDF;
     const destination = path.join(folder, path.basename(source));
     try {
       // COPYFILE_EXCL refuses to overwrite an existing file.
@@ -251,20 +300,7 @@ export function createLibrary(
     if (fs.existsSync(destination) && !sameFile(source, destination)) {
       throw new Error(`“${path.basename(destination)}” already exists.`);
     }
-    fs.renameSync(source, destination);
-    const moved: [string, string][] = [];
-    try {
-      for (const [from, to] of sidecars(source).map((file, i) => [file, sidecars(destination)[i]])) {
-        if (!fs.existsSync(from)) continue;
-        fs.renameSync(from, to);
-        moved.push([from, to]);
-      }
-    } catch (error) {
-      // Keep the PDF and its sidecars together.
-      for (const [from, to] of moved.reverse()) fs.renameSync(to, from);
-      fs.renameSync(destination, source);
-      throw error;
-    }
+    moveFileWithSidecars(source, destination);
     return destination;
   }
 
@@ -507,6 +543,7 @@ export function createLibrary(
     createFolder,
     renameFolder,
     trashFolder,
+    move,
     importPDF,
     renameFile,
     trashFile,

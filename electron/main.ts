@@ -238,6 +238,7 @@ function createHandlers(window: BrowserWindow) {
     signIn: assistant.signIn,
     enterSignInCode: assistant.enterSignInCode,
     importPDF: (folder: string) => importPDF(window, folder),
+    importPDFFile: (source: string, folder: string) => library.importPDF(source, folder),
     readTheme,
     setTheme,
   };

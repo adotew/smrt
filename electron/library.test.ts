@@ -296,3 +296,41 @@ test("malformed cards inside a deck are refused and concurrent saves don't colli
     [],
   );
 });
+
+test("nested folders and moving files or folders", async () => {
+  const { dir, library, source } = setup();
+  const rootA = library.createFolder("Math");
+  const rootB = library.createFolder("Physics");
+  const sub = library.createFolder("Calculus", rootA);
+  const pdf = library.importPDF(source, sub);
+  library.saveNotes(pdf, { 1: "limits" });
+
+  assert.deepEqual(
+    library.listLibrary().map((f) => ({ name: f.name, sub: f.folders.map((s) => s.name) })),
+    [
+      { name: "Math", sub: ["Calculus"] },
+      { name: "Physics", sub: [] },
+    ],
+  );
+
+  // Move PDF with sidecars into another folder.
+  const movedPdf = library.move(pdf, rootB);
+  assert.equal(movedPdf, path.join(rootB, "Paper.pdf"));
+  assert.deepEqual(library.readNotes(movedPdf), { 1: "limits" });
+  assert.throws(() => library.move(movedPdf, null), /inside a folder/);
+
+  // Rename nested folder stays inside its parent.
+  const renamedSub = library.renameFolder(sub, "Analysis");
+  assert.equal(renamedSub, path.join(rootA, "Analysis"));
+
+  // Move subfolder into Physics, then back to root.
+  const movedSub = library.move(renamedSub, rootB);
+  assert.equal(movedSub, path.join(rootB, "Analysis"));
+  assert.throws(() => library.move(rootB, movedSub), /into itself/);
+  assert.throws(() => library.move(rootB, rootB), /into itself/);
+  assert.throws(() => library.move(movedPdf, dir), /outside the library/);
+
+  const backAtRoot = library.move(movedSub, null);
+  assert.equal(path.dirname(backAtRoot), path.dirname(rootA));
+  assert.deepEqual(library.listLibrary().map((f) => f.name), ["Analysis", "Math", "Physics"]);
+});

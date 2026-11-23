@@ -30,6 +30,20 @@ function readRecent(): string[] {
   }
 }
 
+export function filesOf(folder: Folder) {
+  return [...folder.pdfs, ...folder.markdown, ...folder.decks, ...folder.quizzes, ...folder.html];
+}
+
+export function allFiles(folders: Folder[], prefix = ""): { name: string; path: string; folder: string; folderPath: string }[] {
+  return folders.flatMap((f) => {
+    const label = prefix ? `${prefix}/${f.name}` : f.name;
+    return [
+      ...filesOf(f).map((file) => ({ ...file, folder: label, folderPath: f.path })),
+      ...allFiles(f.folders, label),
+    ];
+  });
+}
+
 let state: AssistantState = {
   model: models[0].id,
   context: null,
@@ -81,7 +95,12 @@ api.on("assistant", (chunk) => {
 function listen(abortSignal: AbortSignal | undefined, resumed?: string) {
   current?.close();
   let own: typeof current = null;
-  const stream = new ReadableStream<UIMessageChunk>({ start: (controller) => void (current = own = controller) });
+  const stream = new ReadableStream<UIMessageChunk>({
+    start: (controller) => {
+      current = controller;
+      own = controller;
+    },
+  });
   abortSignal?.addEventListener("abort", () => {
     api.stopAssistant();
     if (current === own) current = null;
