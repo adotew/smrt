@@ -1,4 +1,13 @@
-import { createContext, useContext, useEffect, useRef, useState, type RefObject } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+  type RefObject,
+} from "react";
 import { flushSync } from "react-dom";
 import {
   DockviewReact,
@@ -21,6 +30,15 @@ import Pane, { fileType, type PaneHandle } from "./components/Pane.tsx";
 import Assistant from "./views/Assistant.tsx";
 
 const api = window.smrt;
+
+const SIDEBAR = { key: "sidebarWidth", fallback: 240, min: 180, max: 480 } as const;
+const ASSISTANT = { key: "assistantWidth", fallback: 380, min: 280, max: 720 } as const;
+const MIN_DOCK = 240;
+
+function readWidth({ key, fallback, min, max }: { key: string; fallback: number; min: number; max: number }) {
+  const parsed = Number(localStorage.getItem(key));
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(max, Math.max(min, parsed)) : fallback;
+}
 
 const baseName = (name: string) => name.replace(/\.(pdf|md|cards|quiz|html)$/i, "");
 const title = (path: string) => baseName(path.split(/[\\/]/).pop()!);
@@ -122,7 +140,11 @@ export default function App() {
   const views = useRef<Record<string, PaneHandle | null>>({});
   const [showingSidebar, setShowingSidebar] = useState(true);
   const [showingAssistant, setShowingAssistant] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(() => readWidth(SIDEBAR));
+  const [assistantWidth, setAssistantWidth] = useState(() => readWidth(ASSISTANT));
+  const [resizing, setResizing] = useState<"sidebar" | "assistant" | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const main = useRef<HTMLElement>(null);
 
   const promptDialog = useRef<HTMLDialogElement>(null);
   const promptInput = useRef<HTMLInputElement>(null);
@@ -414,9 +436,57 @@ export default function App() {
     addToFolder(choice, target, { onNewFolder: newFolder, onImportPDF: importInto, onNewFile: newFile });
   }
 
+  function startResize(side: "sidebar" | "assistant", event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const handle = event.currentTarget;
+    handle.setPointerCapture(event.pointerId);
+
+    const config = side === "sidebar" ? SIDEBAR : ASSISTANT;
+    const startX = event.clientX;
+    const startWidth = side === "sidebar" ? sidebarWidth : assistantWidth;
+    const otherWidth = side === "sidebar" ? (showingAssistant ? assistantWidth : 0) : showingSidebar ? sidebarWidth : 0;
+    const containerWidth = main.current?.clientWidth ?? window.innerWidth;
+    const max = Math.max(config.min, Math.min(config.max, containerWidth - otherWidth - MIN_DOCK));
+    let latest = startWidth;
+
+    setResizing(side);
+
+    function onMove(move: PointerEvent) {
+      const delta = side === "sidebar" ? move.clientX - startX : startX - move.clientX;
+      latest = Math.round(Math.min(max, Math.max(config.min, startWidth + delta)));
+      if (side === "sidebar") setSidebarWidth(latest);
+      else setAssistantWidth(latest);
+    }
+
+    function onEnd() {
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onEnd);
+      handle.removeEventListener("pointercancel", onEnd);
+      if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+      setResizing(null);
+      localStorage.setItem(config.key, String(latest));
+    }
+
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onEnd);
+    handle.addEventListener("pointercancel", onEnd);
+  }
+
+  function resetWidth(side: "sidebar" | "assistant") {
+    const config = side === "sidebar" ? SIDEBAR : ASSISTANT;
+    if (side === "sidebar") setSidebarWidth(config.fallback);
+    else setAssistantWidth(config.fallback);
+    localStorage.setItem(config.key, String(config.fallback));
+  }
+
   return (
     <>
-      <main className={`${windowed ? "windowed" : ""} ${showingSidebar ? "" : "sidebar-hidden"} ${showingAssistant ? "" : "assistant-hidden"}`}>
+      <main
+        ref={main}
+        className={`${windowed ? "windowed" : ""} ${showingSidebar ? "" : "sidebar-hidden"} ${showingAssistant ? "" : "assistant-hidden"} ${resizing ? "resizing" : ""}`}
+        style={{ "--sidebar-width": `${sidebarWidth}px`, "--assistant-width": `${assistantWidth}px` } as CSSProperties}
+      >
         <aside id="sidebar" hidden={!showingSidebar}>
           <FileTree
             folders={folders}
@@ -438,6 +508,19 @@ export default function App() {
             }}
           />
         </aside>
+        {showingSidebar && (
+          <div
+            className={`resize-sash ${resizing === "sidebar" ? "active" : ""}`}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize sidebar"
+            aria-valuenow={sidebarWidth}
+            aria-valuemin={SIDEBAR.min}
+            aria-valuemax={SIDEBAR.max}
+            onPointerDown={(event) => startResize("sidebar", event)}
+            onDoubleClick={() => resetWidth("sidebar")}
+          />
+        )}
         <section id="dock">
           <Panes.Provider value={{ views, active: active?.id ?? null, onerror: showError }}>
             <DockviewReact
@@ -451,6 +534,19 @@ export default function App() {
             />
           </Panes.Provider>
         </section>
+        {showingAssistant && (
+          <div
+            className={`resize-sash ${resizing === "assistant" ? "active" : ""}`}
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize assistant"
+            aria-valuenow={assistantWidth}
+            aria-valuemin={ASSISTANT.min}
+            aria-valuemax={ASSISTANT.max}
+            onPointerDown={(event) => startResize("assistant", event)}
+            onDoubleClick={() => resetWidth("assistant")}
+          />
+        )}
         <aside id="assistant" hidden={!showingAssistant}>
           <Assistant context={filePath} open={showingAssistant} onOpenChange={setShowingAssistant} onopen={openFile} />
         </aside>
