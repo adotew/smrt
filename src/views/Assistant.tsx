@@ -51,7 +51,7 @@ export default function Assistant({
   onopen: (path: string, beside?: boolean) => void;
 }) {
   const { messages, status, error, sendMessage, stop, setMessages, regenerate, addToolApprovalResponse } = useChat({ chat });
-  const { library, recent, model } = useAssistant();
+  const { library, model } = useAssistant();
   const [draft, setDraft] = useState("");
   const field = useRef<HTMLTextAreaElement>(null);
   /** Off once the person removes the file chip, until they add it back. */
@@ -78,8 +78,6 @@ export default function Assistant({
           .filter(({ score }) => score > 0)
           .sort((a, b) => b.score - a.score)
           .map(({ file }) => file);
-  const files = new Map(libraryFiles().map((file) => [file.path, file]));
-  const recentFiles = recent.flatMap((path) => files.get(path) ?? []).slice(0, 6);
 
   // Highlights the best match as the query changes.
   const best = mentionMatches[0]?.path ?? "";
@@ -450,28 +448,7 @@ export default function Assistant({
           <Icon name="close" />
         </Button>
       </div>
-      {messages.length > 0 ? (
-        thread()
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col justify-end gap-2 overflow-auto px-3 pb-2">
-          {recentFiles.length > 0 && (
-            <>
-              <h2 className="m-0 px-2 text-xs font-medium text-muted-foreground">Recent</h2>
-              {recentFiles.map((file) => (
-                <button
-                  key={file.path}
-                  className="flex min-w-0 items-center gap-2.5 rounded-xl border-0 bg-transparent px-2.5 py-2 text-left text-sm text-inherit hover:bg-(--hover)"
-                  onClick={() => onopen(file.path)}
-                >
-                  <FileIcon type={fileType(file.path)} size={18} />
-                  <span className="truncate">{baseName(file.path)}</span>
-                  <span className="ml-auto shrink-0 pl-2 text-xs text-muted-foreground">{file.folder}</span>
-                </button>
-              ))}
-            </>
-          )}
-        </div>
-      )}
+      {messages.length > 0 ? thread() : <div className="flex-1" />}
       <div className="shrink-0 p-3">{composer()}</div>
     </div>
   );

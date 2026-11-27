@@ -21,7 +21,6 @@ import type { Command } from "../electron/main.ts";
 import type { Folder } from "../electron/library.ts";
 import { Button } from "./components/ui/button.tsx";
 import ContextMenu, { contextMenu } from "./components/ContextMenu.tsx";
-import EmptyState from "./components/EmptyState.tsx";
 import FileIcon from "./components/FileIcon.tsx";
 import FileTree, { addToFolder, addToFolderItems } from "./components/FileTree.tsx";
 import Icon, { IconButton } from "./components/Icon.tsx";
@@ -123,12 +122,7 @@ function FileTab({ api: panel, params }: IDockviewPanelHeaderProps<{ path: strin
     </div>
   );
 }
-const Watermark = () => (
-  <>
-    <div className="drag-strip"></div>
-    <EmptyState icon="document" title="No file open" description="Pick one from the library." />
-  </>
-);
+const Watermark = () => <div className="drag-strip"></div>;
 
 export default function App() {
   const { library: folders, edits } = useAssistant();
