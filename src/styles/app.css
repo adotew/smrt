@@ -718,6 +718,11 @@ main.resizing iframe {
   .invert-pdfs .sheet canvas {
     filter: invert(1) hue-rotate(180deg);
   }
+
+  /* White inverted, so a page that hasn't rendered yet doesn't flash white while scrolling. */
+  .invert-pdfs .sheet {
+    background: #000;
+  }
 }
 
 .note {
