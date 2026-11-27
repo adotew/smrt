@@ -17,7 +17,7 @@ import htmlGuide from "../docs/html-pages.md";
 import { createAssistant } from "./assistant.ts";
 import { createLibrary, withPageStyle } from "./library.ts";
 import pageStyle from "./page.css";
-import { newerRelease } from "./updates.ts";
+import { checkForUpdates, startUpdates } from "./updates.ts";
 
 export type Command =
   | "undo"
@@ -91,34 +91,6 @@ async function importPDF(window: BrowserWindow, folder: string) {
   return canceled || !filePaths[0] ? null : library.importPDF(filePaths[0], folder);
 }
 
-/** Quiet checks, as on launch, only speak up when there is an update. */
-async function checkForUpdates(window: BrowserWindow, quiet: boolean) {
-  const current = app.getVersion();
-  let update;
-  try {
-    update = await newerRelease(current);
-  } catch (error) {
-    if (!quiet && !window.isDestroyed()) {
-      const detail = error instanceof Error ? error.message : String(error);
-      await dialog.showMessageBox(window, { type: "warning", message: "Smrt couldn't check for updates.", detail });
-    }
-    return;
-  }
-  if (window.isDestroyed()) return;
-  if (update) {
-    const { response } = await dialog.showMessageBox(window, {
-      message: `Smrt ${update.version} is available`,
-      detail: `You have version ${current}.`,
-      buttons: ["Download", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-    });
-    if (response === 0) await shell.openExternal(update.url);
-  } else if (!quiet) {
-    await dialog.showMessageBox(window, { message: "Smrt is up to date", detail: `Version ${current} is the newest.` });
-  }
-}
-
 let settingsWindow: BrowserWindow | null = null;
 let stopLogin = () => {};
 function openSettings() {
@@ -168,10 +140,9 @@ function buildMenu(window: BrowserWindow) {
   };
   const checkItem = {
     label: "Check for Updates…",
-    click: () => {
-      const target = BrowserWindow.getFocusedWindow() ?? (!window.isDestroyed() ? window : null);
-      if (target) checkForUpdates(target, false);
-    },
+    // Squirrel.Mac only updates a signed, packaged app.
+    enabled: app.isPackaged,
+    click: checkForUpdates,
   };
   const settingsItem = { label: "Settings…", accelerator: "CmdOrCtrl+,", click: openSettings };
   const appMenu: MenuItemConstructorOptions = {
@@ -319,7 +290,7 @@ app.whenReady().then(() => {
   window.on("leave-full-screen", () => window.webContents.send("fullscreen", false));
   window.once("ready-to-show", () => {
     window.show();
-    if (app.isPackaged) checkForUpdates(window, true);
+    if (app.isPackaged) startUpdates();
   });
   load(window);
   if (process.env.VITE_DEV_SERVER_URL) window.webContents.openDevTools({ mode: "detach" });

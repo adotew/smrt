@@ -54,8 +54,8 @@ On an Apple Silicon Mac, download `Smrt-<version>-arm64.dmg` from the
 [latest release](https://github.com/adotew/smrt/releases/latest), open it and drag Smrt into
 Applications.
 
-Smrt checks for a newer release on launch and offers to open its download page;
-**Smrt → Check for Updates…** checks by hand.
+Smrt checks for a newer release on launch, downloads it in the background and offers to restart into
+it; **Smrt → Check for Updates…** checks by hand.
 
 ## Run
 
@@ -146,7 +146,8 @@ certificate exported as `.p12`, base64-encoded), `APPLE_CERTIFICATE_PASSWORD`, `
 `APPLE_APP_PASSWORD` (an app-specific password). To release by hand instead, run `npm run dmg` and
 `gh release create`.
 
-Installed copies compare their version with the latest release's tag and offer the update.
+Installed copies update through [update.electronjs.org](https://github.com/electron/update.electronjs.org),
+which serves the release's `Smrt-<version>-darwin-arm64.zip` to Electron's `autoUpdater`.
 
 ## Check and test
 
@@ -160,6 +161,5 @@ npm test
 
 Tests cover folder and name validation, PDF importing and renaming, markdown files, notes,
 reading positions, page edits, and duplicate-file protection in `electron/library.ts`, the
-assistant's message stream, sign-in and file permissions in `electron/assistant.ts`, version
-checks in `electron/updates.ts`, and quiz parsing, card scheduling, toggles and
+assistant's message stream, sign-in and file permissions in `electron/assistant.ts`, and quiz parsing, card scheduling, toggles and
 PDF search in `src/lib/`.

@@ -60,5 +60,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release/Smrt-*-arm64.dmg \
+          gh release create "$GITHUB_REF_NAME" release/Smrt-*-arm64.dmg release/Smrt-*-darwin-arm64.zip \
             --title "Smrt ${GITHUB_REF_NAME#v}" --generate-notes
