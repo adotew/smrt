@@ -20,10 +20,13 @@ export interface PaneHandle {
   undo: () => void;
   redo: () => void;
   startEditing: () => void;
+  find: () => void;
 }
 
+const FILE_TYPES = ["md", "cards", "quiz", "html"] as const;
+
 export const fileType = (path: string) =>
-  /\.md$/i.test(path) ? "md" : /\.cards$/i.test(path) ? "cards" : /\.quiz$/i.test(path) ? "quiz" : /\.html$/i.test(path) ? "html" : "pdf";
+  FILE_TYPES.find((type) => path.toLowerCase().endsWith(`.${type}`)) ?? "pdf";
 
 export default function Pane({
   ref,
@@ -61,6 +64,7 @@ export default function Pane({
     undo: () => (type === "md" ? markdown.current?.undo() : reader.current?.undo()),
     redo: () => (type === "md" ? markdown.current?.redo() : reader.current?.redo()),
     startEditing: () => deck.current?.startEditing(),
+    find: () => reader.current?.find(),
   }));
 
   return (

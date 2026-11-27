@@ -1320,3 +1320,65 @@ dialog .buttons {
 .dv-inactive-tab .file-tab .file-icon {
   opacity: 0.6;
 }
+
+/* Find */
+
+.find-bar {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 3px 3px 12px;
+}
+
+.find-bar input {
+  width: 160px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+.find-count {
+  min-width: 64px;
+  padding-right: 4px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--label);
+}
+
+/* Painted over the transparent text layer, so they tint the page like a highlighter. */
+::highlight(find) {
+  background-color: rgb(255 204 0 / 0.35);
+}
+
+::highlight(find-current) {
+  background-color: rgb(255 140 0 / 0.55);
+}
+
+/* Go to File */
+
+dialog.quick-open {
+  width: 520px;
+  margin-top: 12vh;
+  padding: 0;
+}
+
+.quick-open [cmdk-root] {
+  background: none;
+}
+
+.quick-open input,
+.quick-open input:focus {
+  height: 40px;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 1px solid var(--separator);
+  margin-bottom: 4px;
+  background: none;
+  box-shadow: none;
+}

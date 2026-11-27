@@ -20,6 +20,32 @@ function Command({
   )
 }
 
+function CommandInput({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Input>) {
+  return (
+    <CommandPrimitive.Input
+      data-slot="command-input"
+      className={cn("w-full bg-transparent outline-none placeholder:text-muted-foreground", className)}
+      {...props}
+    />
+  )
+}
+
+function CommandEmpty({
+  className,
+  ...props
+}: React.ComponentProps<typeof CommandPrimitive.Empty>) {
+  return (
+    <CommandPrimitive.Empty
+      data-slot="command-empty"
+      className={cn("py-6 text-center text-sm text-muted-foreground", className)}
+      {...props}
+    />
+  )
+}
+
 function CommandList({
   className,
   ...props
@@ -55,4 +81,4 @@ function CommandItem({
   )
 }
 
-export { Command, CommandList, CommandItem }
+export { Command, CommandInput, CommandEmpty, CommandList, CommandItem }

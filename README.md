@@ -1,7 +1,8 @@
 # Smrt
 
 A PDF library and reader with per-page notes and a markdown editor, built with Electron, React,
-TypeScript, pdf.js and Tiptap. It runs on macOS, Windows and Linux.
+TypeScript, pdf.js and Tiptap. Releases are built for Apple Silicon Macs; on Intel Macs, Windows and
+Linux, run it from source (see [Run](#run)).
 
 PDFs, markdown files and flashcard decks live in folders inside the `Library` folder in Smrt's app data directory:
 
@@ -85,7 +86,10 @@ builds the React renderer into `dist/`, and launches Electron.
 | Action          | macOS                    | Windows and Linux     |
 | --------------- | ------------------------ | --------------------- |
 | Undo / redo     | Command + Z / Shift + Command + Z | Ctrl + Z / Shift + Ctrl + Z |
-| Toggle sidebar  | Control + Command + S    | Ctrl + Shift + S      |
+| Go to file      | Command + P              | Ctrl + P              |
+| Find in PDF     | Command + F              | Ctrl + F              |
+| Toggle sidebar  | Command + B              | Ctrl + B              |
+| Assistant       | Command + J              | Ctrl + J              |
 | Toggle notes    | Command + Shift + N      | Ctrl + Shift + N      |
 | Split view      | Command + \              | Ctrl + \              |
 | Zoom in / out   | Command + = / −          | Ctrl + = / −          |
@@ -93,7 +97,8 @@ builds the React renderer into `dist/`, and launches Electron.
 | Zoom to fit     | Command + 9              | Ctrl + 9              |
 | Fullscreen      | Control + Command + F    | F11                   |
 
-You can also pinch to zoom on a trackpad.
+You can also pinch to zoom on a trackpad. In the find bar, Enter and Shift + Enter step through the
+matches and Escape closes it.
 
 Right-click a file and choose **Open in Split View** to show it beside the current one. Drag the
 divider to resize the panes, or all the way to an edge to close one; the sidebar and menu commands
@@ -154,4 +159,7 @@ npm test
 `window.smrt` is typed from the handlers in `electron/main.ts`.
 
 Tests cover folder and name validation, PDF importing and renaming, markdown files, notes,
-reading positions, page edits, and duplicate-file protection in `electron/library.ts`.
+reading positions, page edits, and duplicate-file protection in `electron/library.ts`, the
+assistant's message stream, sign-in and file permissions in `electron/assistant.ts`, version
+checks in `electron/updates.ts`, and quiz parsing, card scheduling, toggles and
+PDF search in `src/lib/`.

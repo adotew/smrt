@@ -11,14 +11,15 @@ import {
   type Ref,
 } from "react";
 import { flushSync } from "react-dom";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence } from "motion/react";
 import type { PageViewport, PDFDocumentProxy, PDFPageProxy, RenderTask } from "pdfjs-dist";
 import type { Annotations, Notes, PageEdit, PageImage, PageNote, Rect, Versions } from "../../electron/library.ts";
 import { contextMenu, type MenuItem } from "../components/ContextMenu.tsx";
-import Icon from "../components/Icon.tsx";
+import FindBar from "../components/FindBar.tsx";
+import TextFormatBar, { TEXT_COLORS, TEXT_SIZES, TEXT_STYLES } from "../components/TextFormatBar.tsx";
+import { findMatches, matchRange, pageText, type Match, type PageText } from "../lib/find.ts";
 import { pickImage, shrinkImage } from "../lib/image.ts";
 import { openPDF, pdfjs } from "../lib/pdf.ts";
-import { grow, slide } from "../lib/transitions.ts";
 
 interface Sheet {
   pdfPage: PDFPageProxy;
@@ -26,6 +27,8 @@ interface Sheet {
   drawnScale: number;
   visible: boolean;
   task: RenderTask | null;
+  /** The text layer's spans, once it has rendered. */
+  textDivs: HTMLElement[] | null;
 }
 /** An undo step; `key` and `at` merge rapid edits, and `pdf` marks a page edit. */
 interface Step {
@@ -45,6 +48,7 @@ export interface ReaderHandle {
   undo: () => void;
   redo: () => void;
   insertImage: () => void;
+  find: () => void;
 }
 
 const api = window.smrt;
@@ -52,21 +56,6 @@ const NOTES_WIDTH = 280;
 const PAGE_GAP = 12;
 /** A note's default text box size at scale 1. */
 const NOTE_SIZE = [180, 90] as const;
-const TEXT_SIZES = [8, 10, 12, 14, 18, 24, 32, 48];
-const TEXT_STYLES = [
-  ["bold", "Bold"],
-  ["italic", "Italic"],
-  ["underline", "Underline"],
-] as const;
-/** Dark enough to read on a white page. */
-const TEXT_COLORS = [
-  ["#000000", "Black"],
-  ["#d70015", "Red"],
-  ["#c93400", "Orange"],
-  ["#248a3d", "Green"],
-  ["#0040dd", "Blue"],
-  ["#8944ab", "Purple"],
-] as const;
 const COLORS = ["yellow", "orange", "red", "pink", "purple", "blue", "green"];
 
 const PAGE_EDITS: Record<string, (page: number) => PageEdit> = {
@@ -96,6 +85,13 @@ function debounce(fn: (pdf: string) => void, ms: number) {
     timer = setTimeout(() => flush(pdf), ms);
   };
   return Object.assign(debounced, { flush, cancel });
+}
+
+/** One registry serves every reader, so each removes only the ranges it added. */
+function highlightNamed(name: string) {
+  let highlight = CSS.highlights.get(name);
+  if (!highlight) CSS.highlights.set(name, (highlight = new Highlight()));
+  return highlight;
 }
 
 // pdf.js splits lines into overlapping spans; joining them stops the overlaps from darkening.
@@ -174,7 +170,16 @@ export default function Reader(props: Props) {
     /** The scale the pages were last laid out at. */
     laidOut: 0,
     editingPages: false,
+    /** Each page's text, loaded the first time a search needs it. */
+    texts: [] as Promise<PageText>[],
+    find: null as { query: string; texts: PageText[]; matches: Match[]; current: number } | null,
+    /** Counts searches, so a slow one can't overwrite a newer one's matches. */
+    searches: 0,
+    findRanges: [] as Range[],
+    /** Whether the current match should scroll into view once its page's text layer renders. */
+    revealing: false,
   }));
+  const findInput = useRef<HTMLInputElement>(null);
 
   const withNotes = () => latest.current.showingNotes && s.notes != null;
   const fit = () =>
@@ -201,6 +206,7 @@ export default function Reader(props: Props) {
               sheet.task?.cancel();
               sheet.task = null;
               sheet.drawnScale = 0;
+              sheet.textDivs = null;
               sheet.element?.replaceChildren();
             }
           }
@@ -289,7 +295,7 @@ export default function Reader(props: Props) {
       ]);
       if (pdf !== latest.current.path) return opened.loadingTask.destroy();
       s.doc = opened;
-      s.sheets = pdfPages.map((pdfPage) => ({ pdfPage, element: null, drawnScale: 0, visible: false, task: null }));
+      s.sheets = pdfPages.map((pdfPage) => ({ pdfPage, element: null, drawnScale: 0, visible: false, task: null, textDivs: null }));
       s.scale = position?.scale ?? null;
       s.currentPage = Math.min(position?.page ?? 0, pdfPages.length - 1);
       s.anchor = { page: s.currentPage, offset: 0 };
@@ -325,7 +331,10 @@ export default function Reader(props: Props) {
       pickingColor: false,
       selectedImage: null,
       scale: null,
+      texts: [],
+      find: null,
     });
+    paintFind();
     update();
   }
 
@@ -395,9 +404,102 @@ export default function Reader(props: Props) {
     textLayer.className = "textLayer";
     sheet.element.style.setProperty("--total-scale-factor", String(scale));
     sheet.element.replaceChildren(canvas, textLayer);
-    await new pdfjs.TextLayer({ textContentSource: sheet.pdfPage.streamTextContent(), container: textLayer, viewport })
-      .render()
-      .catch(() => {});
+    sheet.textDivs = null;
+    const layer = new pdfjs.TextLayer({ textContentSource: sheet.pdfPage.streamTextContent(), container: textLayer, viewport });
+    await layer.render().catch(() => {});
+    // A later draw or scrolling away may have replaced the layer meanwhile.
+    if (!textLayer.isConnected) return;
+    sheet.textDivs = layer.textDivs;
+    paintFind();
+  }
+
+  function pageTextOf(index: number) {
+    return (s.texts[index] ??= s.sheets[index].pdfPage.getTextContent().then((content) => pageText(content.items)));
+  }
+
+  function openFind() {
+    if (!s.doc) return;
+    s.find ??= { query: "", texts: [], matches: [], current: 0 };
+    flushSync(update);
+    findInput.current?.select();
+  }
+
+  function closeFind() {
+    s.find = null;
+    s.searches++;
+    paintFind();
+    update();
+  }
+
+  async function search(query: string) {
+    if (!s.find) return;
+    s.find.query = query;
+    update();
+    const search = ++s.searches;
+    const doc = s.doc;
+    let texts;
+    try {
+      texts = await Promise.all(s.sheets.map((_, index) => pageTextOf(index)));
+    } catch (error) {
+      return onerror(error);
+    }
+    if (search !== s.searches || !s.find || s.doc !== doc) return;
+    const matches = findMatches(texts, query);
+    // Starts from the page being read rather than the first page.
+    const current = Math.max(0, matches.findIndex((match) => match.page >= s.currentPage));
+    Object.assign(s.find, { texts, matches, current });
+    revealMatch();
+  }
+
+  function stepFind(step: 1 | -1) {
+    const find = s.find;
+    if (!find?.matches.length) return;
+    find.current = (find.current + step + find.matches.length) % find.matches.length;
+    revealMatch();
+  }
+
+  /** Scrolls to the current match; a page without its text layer is scrolled to first, and the match once the layer renders. */
+  function revealMatch() {
+    const match = s.find?.matches[s.find.current];
+    s.revealing = match != null;
+    const row = match && !s.sheets[match.page]?.textDivs && s.rows[match.page];
+    if (row) container.current!.scrollTop = row.offsetTop;
+    paintFind();
+    update();
+  }
+
+  /** Marks the matches on pages whose text layer has rendered. */
+  function paintFind() {
+    const all = highlightNamed("find");
+    const current = highlightNamed("find-current");
+    for (const range of s.findRanges) {
+      all.delete(range);
+      current.delete(range);
+    }
+    s.findRanges = [];
+    const find = s.find;
+    if (!find) return;
+    find.matches.forEach((match, index) => {
+      const spans = s.sheets[match.page]?.textDivs;
+      const range = spans && matchRange(find.texts[match.page], spans, match);
+      if (!range) return;
+      s.findRanges.push(range);
+      if (index !== find.current) return void all.add(range);
+      current.add(range);
+      if (s.revealing) {
+        s.revealing = false;
+        scrollToRange(range);
+      }
+    });
+  }
+
+  function scrollToRange(range: Range) {
+    const scroller = container.current!;
+    const box = range.getBoundingClientRect();
+    const view = scroller.getBoundingClientRect();
+    // Clear of the find bar above and the toolbar below.
+    if (box.top < view.top + 56 || box.bottom > view.bottom - 64) scroller.scrollTop += box.top - view.top - view.height / 3;
+    if (box.left < view.left || box.right > view.right) scroller.scrollLeft += box.left - view.left - view.width / 3;
   }
 
   function onscroll() {
@@ -806,6 +908,7 @@ export default function Reader(props: Props) {
     undo: () => step(s.undoStack, s.redoStack, "before"),
     redo: () => step(s.redoStack, s.undoStack, "after"),
     insertImage,
+    find: openFind,
   }));
 
   const editedNote = s.annotations?.pageNotes?.find((n) => n.id === s.editingNote);
@@ -937,82 +1040,34 @@ export default function Reader(props: Props) {
         ))}
       </div>
 
-      {/* Preventing mousedown keeps the note focused, so it stays in editing. */}
+      <AnimatePresence initial={false}>
+        {s.find && (
+          <FindBar
+            ref={findInput}
+            query={s.find.query}
+            count={s.find.matches.length}
+            current={s.find.current}
+            onQueryChange={search}
+            onStep={stepFind}
+            onClose={closeFind}
+          />
+        )}
+      </AnimatePresence>
+
       <AnimatePresence initial={false}>
         {editedNote && (
-          <motion.div
+          <TextFormatBar
             key="text-format"
-            className="bottom-toolbar text-format floating"
-            role="toolbar"
-            tabIndex={-1}
-            style={{ x: "-50%" }}
-            {...grow(0.9)}
-            onMouseDown={(event) => event.preventDefault()}
-          >
-            {TEXT_STYLES.map(([style, label]) => (
-              <button
-                key={style}
-                className={`icon-button ${editedNote[style] ? "active" : ""}`}
-                title={label}
-                aria-label={label}
-                aria-pressed={!!editedNote[style]}
-                onClick={() => toggleTextStyle(editedNote, style)}
-              >
-                <Icon name={style} />
-              </button>
-            ))}
-            <div className="toolbar-separator"></div>
-            <button
-              className="icon-button"
-              title="Smaller Text"
-              aria-label="Smaller Text"
-              aria-disabled={(editedNote.size ?? 14) <= TEXT_SIZES[0]}
-              onClick={() => resizeText(editedNote, -1)}
-            >
-              <Icon name="minus" />
-            </button>
-            <span className="text-size">{editedNote.size ?? 14}</span>
-            <button
-              className="icon-button"
-              title="Larger Text"
-              aria-label="Larger Text"
-              aria-disabled={(editedNote.size ?? 14) >= TEXT_SIZES.at(-1)!}
-              onClick={() => resizeText(editedNote, 1)}
-            >
-              <Icon name="add" />
-            </button>
-            <div className="toolbar-separator"></div>
-            {/* Only the current colour shows; clicking it slides the others out around it. */}
-            <div className="text-colors">
-              <AnimatePresence initial={false}>
-                {TEXT_COLORS.map(([color, label]) => {
-                  const current = (editedNote.color ?? TEXT_COLORS[0][0]) === color;
-                  return (
-                    (current || s.pickingColor) && (
-                      // Padded so the clip leaves room for the active swatch's outline.
-                      <motion.span key={color} className="-m-1 flex p-1" {...slide}>
-                        <button
-                          className={`swatch ${current && s.pickingColor ? "active" : ""}`}
-                          style={{ background: color }}
-                          title={s.pickingColor ? label : "Text Colour"}
-                          aria-label={s.pickingColor ? `${label} Text` : "Text Colour"}
-                          aria-pressed={s.pickingColor ? current : undefined}
-                          aria-expanded={current ? s.pickingColor : undefined}
-                          onClick={() => {
-                            if (s.pickingColor) colorText(editedNote, color);
-                            else {
-                              s.pickingColor = true;
-                              update();
-                            }
-                          }}
-                        ></button>
-                      </motion.span>
-                    )
-                  );
-                })}
-              </AnimatePresence>
-            </div>
-          </motion.div>
+            note={editedNote}
+            picking={s.pickingColor}
+            onToggleStyle={(style) => toggleTextStyle(editedNote, style)}
+            onResize={(step) => resizeText(editedNote, step)}
+            onColor={(color) => colorText(editedNote, color)}
+            onPick={() => {
+              s.pickingColor = true;
+              update();
+            }}
+          />
         )}
       </AnimatePresence>
 

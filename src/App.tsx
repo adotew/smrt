@@ -27,6 +27,7 @@ import FileTree, { addToFolder, addToFolderItems } from "./components/FileTree.t
 import Icon, { IconButton } from "./components/Icon.tsx";
 import { allFiles, assistant, useAssistant } from "./lib/assistant.ts";
 import Pane, { fileType, type PaneHandle } from "./components/Pane.tsx";
+import QuickOpen from "./components/QuickOpen.tsx";
 import Assistant from "./views/Assistant.tsx";
 
 const api = window.smrt;
@@ -144,6 +145,7 @@ export default function App() {
   const [assistantWidth, setAssistantWidth] = useState(() => readWidth(ASSISTANT));
   const [resizing, setResizing] = useState<"sidebar" | "assistant" | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [quickOpening, setQuickOpening] = useState(false);
   const main = useRef<HTMLElement>(null);
 
   const promptDialog = useRef<HTMLDialogElement>(null);
@@ -188,6 +190,8 @@ export default function App() {
       zoomOut: () => view()?.zoomOut(),
       zoomReset: () => view()?.zoom(1),
       zoomFit: () => view()?.zoom(null),
+      find: () => view()?.find(),
+      quickOpen: () => setQuickOpening(true),
       undo: () => view()?.undo(),
       redo: () => view()?.redo(),
     };
@@ -568,6 +572,7 @@ export default function App() {
       </main>
 
       <ContextMenu />
+      <QuickOpen open={quickOpening} onClose={() => setQuickOpening(false)} onOpen={openFile} />
 
       <dialog
         ref={promptDialog}

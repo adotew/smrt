@@ -28,7 +28,9 @@ export type Command =
   | "zoomReset"
   | "zoomIn"
   | "zoomOut"
-  | "zoomFit";
+  | "zoomFit"
+  | "find"
+  | "quickOpen";
 export type Theme = "system" | "light" | "dark";
 
 const isMac = process.platform === "darwin";
@@ -183,7 +185,14 @@ function buildMenu(window: BrowserWindow) {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
       ...(isMac ? [appMenu] : []),
-      { role: "fileMenu" },
+      {
+        label: "File",
+        submenu: [
+          { label: "Go to File…", accelerator: "CmdOrCtrl+P", click: send("quickOpen") },
+          { type: "separator" },
+          isMac ? { role: "close" } : { role: "quit" },
+        ],
+      },
       {
         label: "Edit",
         submenu: [
@@ -195,6 +204,8 @@ function buildMenu(window: BrowserWindow) {
           { role: "copy" },
           { role: "paste" },
           { role: "selectAll" },
+          { type: "separator" },
+          { label: "Find…", accelerator: "CmdOrCtrl+F", click: send("find") },
           ...(isMac ? [] : [{ type: "separator" } as const, settingsItem]),
         ],
       },
