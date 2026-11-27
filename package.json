@@ -1,7 +1,7 @@
 {
   "name": "smrt",
   "productName": "Smrt",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "A small PDF library and reader with per-page notes.",
   "main": "build/main.cjs",
