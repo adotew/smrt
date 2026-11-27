@@ -9,7 +9,7 @@ export type SmrtApi = {
   platform: NodeJS.Platform;
   /** Imports a PDF dropped from outside, so the renderer can only name files the person actually dropped. */
   importDroppedPDF(file: File, folder: string): Promise<string>;
-  on(channel: "fullscreen", listener: (value: boolean) => void): void;
+  on(channel: "fullscreen" | "invertPDFs", listener: (value: boolean) => void): void;
   on(channel: "command", listener: (value: Command) => void): void;
   on(channel: "assistant", listener: (value: UIMessageChunk) => void): void;
 };
@@ -42,6 +42,8 @@ const channels: Record<Exclude<keyof Handlers, "importPDFFile">, true> = {
   restoreVersion: true,
   readTheme: true,
   setTheme: true,
+  readInvertPDFs: true,
+  setInvertPDFs: true,
   askAssistant: true,
   answerAssistant: true,
   stopAssistant: true,

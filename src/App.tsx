@@ -204,6 +204,9 @@ export default function App() {
       restoreLayout();
     });
     api.on("fullscreen", setFullscreen);
+    const invertPDFs = (invert: boolean) => document.documentElement.classList.toggle("invert-pdfs", invert);
+    api.readInvertPDFs().then(invertPDFs);
+    api.on("invertPDFs", invertPDFs);
     api.on("command", (command) => onCommand.current?.(command));
     function onkeydown(event: KeyboardEvent) {
       const mod = api.platform === "darwin" ? event.metaKey : event.ctrlKey;

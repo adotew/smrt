@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import type { Account } from "../../electron/assistant.ts";
 import type { Theme } from "../../electron/main.ts";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 
 const api = window.smrt;
 
 export default function Settings() {
   const [theme, setTheme] = useState<Theme | null>(null);
+  const [invertPDFs, setInvertPDFs] = useState<boolean | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
   const [signingIn, setSigningIn] = useState(false);
   const [code, setCode] = useState("");
@@ -16,6 +18,7 @@ export default function Settings() {
   useEffect(() => {
     (async () => {
       setTheme(await api.readTheme());
+      setInvertPDFs(await api.readInvertPDFs());
       setAccount(await api.readAccount());
     })();
   }, []);
@@ -56,6 +59,18 @@ export default function Settings() {
           </ToggleGroup>
         )}
       </div>
+      <label className="flex items-center justify-between gap-6">
+        <span>Invert PDFs in Dark Mode</span>
+        {invertPDFs !== null && (
+          <Switch
+            checked={invertPDFs}
+            onCheckedChange={(checked) => {
+              setInvertPDFs(checked);
+              api.setInvertPDFs(checked);
+            }}
+          />
+        )}
+      </label>
       <div className="flex items-center justify-between gap-6">
         <span>Claude</span>
         {account?.loggedIn ? (

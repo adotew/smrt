@@ -53,17 +53,27 @@ if (!fs.existsSync(libraryPath) && fs.existsSync(swiftLibrary)) fs.cpSync(swiftL
 const versionsPath = path.join(app.getPath("userData"), "Versions");
 fs.rmSync(versionsPath, { recursive: true, force: true });
 const settingsPath = path.join(app.getPath("userData"), "settings.json");
-function readTheme(): Theme {
+function readSettings(): Record<string, unknown> {
   try {
-    const { theme } = JSON.parse(fs.readFileSync(settingsPath, "utf8"));
-    if (theme === "light" || theme === "dark") return theme;
-  } catch {}
-  return "system";
+    return JSON.parse(fs.readFileSync(settingsPath, "utf8"));
+  } catch {
+    return {};
+  }
+}
+function writeSettings(changes: Record<string, unknown>) {
+  fs.writeFileSync(settingsPath, JSON.stringify({ ...readSettings(), ...changes }));
+}
+function readTheme(): Theme {
+  const { theme } = readSettings();
+  return theme === "light" || theme === "dark" ? theme : "system";
 }
 function setTheme(theme: Theme) {
   if (theme !== "system" && theme !== "light" && theme !== "dark") throw new Error("Unknown theme.");
   nativeTheme.themeSource = theme;
-  fs.writeFileSync(settingsPath, JSON.stringify({ theme }));
+  writeSettings({ theme });
+}
+function readInvertPDFs() {
+  return readSettings().invertPDFs === true;
 }
 nativeTheme.themeSource = readTheme();
 
@@ -252,6 +262,11 @@ function createHandlers(window: BrowserWindow) {
     importPDFFile: (source: string, folder: string) => library.importPDF(source, folder),
     readTheme,
     setTheme,
+    readInvertPDFs,
+    setInvertPDFs: (invert: boolean) => {
+      writeSettings({ invertPDFs: invert === true });
+      window.webContents.send("invertPDFs", invert === true);
+    },
   };
 }
 

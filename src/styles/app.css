@@ -713,6 +713,13 @@ main.resizing iframe {
   height: 100%;
 }
 
+/* Hue-rotate turns the inverted colours back to their own hues, so only lightness flips. */
+@media (prefers-color-scheme: dark) {
+  .invert-pdfs .sheet canvas {
+    filter: invert(1) hue-rotate(180deg);
+  }
+}
+
 .note {
   width: 280px;
   margin-left: 12px;
